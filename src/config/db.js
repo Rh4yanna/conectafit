@@ -1,0 +1,24 @@
+import dotenv from 'dotenv';
+import pg from 'pg';
+
+dotenv.config();
+
+const { Pool } = pg;
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+
+pool.connect((err, client, release) => {
+  if (err) {
+    return console.error(' Erro ao conectar ao PostgreSQL:', err.stack);
+  }
+  console.log(' Banco conecta_fit conectado com sucesso!');
+  release();
+});
+
+export default pool;
