@@ -1,0 +1,48 @@
+BEGIN;
+
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone VARCHAR(20);
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cidade VARCHAR(120);
+
+CREATE TABLE IF NOT EXISTS metas_aluno (
+  aluno_id BIGINT PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+  peso_meta NUMERIC(6,2), cintura_meta NUMERIC(6,2), braco_meta NUMERIC(6,2),
+  quadril_meta NUMERIC(6,2), percentual_gordura_meta NUMERIC(5,2),
+  agua_litros NUMERIC(4,2) NOT NULL DEFAULT 2,
+  treinos_semana SMALLINT NOT NULL DEFAULT 3,
+  refeicoes_semana SMALLINT NOT NULL DEFAULT 14,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS progresso_semanal (
+  id BIGSERIAL PRIMARY KEY, aluno_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  semana DATE NOT NULL, agua_litros NUMERIC(6,2) NOT NULL DEFAULT 0,
+  treinos_concluidos SMALLINT NOT NULL DEFAULT 0, refeicoes_corretas SMALLINT NOT NULL DEFAULT 0,
+  UNIQUE (aluno_id, semana)
+);
+
+CREATE TABLE IF NOT EXISTS medidas_aluno (
+  id BIGSERIAL PRIMARY KEY, aluno_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  data_medicao DATE NOT NULL DEFAULT CURRENT_DATE, peso NUMERIC(6,2), altura NUMERIC(5,2),
+  cintura NUMERIC(6,2), quadril NUMERIC(6,2), braco_direito NUMERIC(6,2),
+  braco_esquerdo NUMERIC(6,2), percentual_gordura NUMERIC(5,2), observacoes TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS fotos_evolucao (
+  id BIGSERIAL PRIMARY KEY, aluno_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  data_registro DATE NOT NULL DEFAULT CURRENT_DATE,
+  frente_url TEXT, costas_url TEXT, lado_esquerdo_url TEXT, lado_direito_url TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (aluno_id, data_registro)
+);
+
+ALTER TABLE conexoes_alunos ADD COLUMN IF NOT EXISTS permite_treinos BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE conexoes_alunos ADD COLUMN IF NOT EXISTS permite_medidas BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE conexoes_alunos ADD COLUMN IF NOT EXISTS permite_fotos BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE conexoes_alunos ADD COLUMN IF NOT EXISTS permite_metas BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE conexoes_nutri ADD COLUMN IF NOT EXISTS permite_dietas BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE conexoes_nutri ADD COLUMN IF NOT EXISTS permite_medidas BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE conexoes_nutri ADD COLUMN IF NOT EXISTS permite_fotos BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE conexoes_nutri ADD COLUMN IF NOT EXISTS permite_metas BOOLEAN NOT NULL DEFAULT TRUE;
+
+COMMIT;

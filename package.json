@@ -6,15 +6,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "migrate": "node server/migrate.js",
+    "security:test": "node server/security-smoke.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^1.31.0",
+    "nodemailer": "^9.0.6",
     "pg": "^8.23.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

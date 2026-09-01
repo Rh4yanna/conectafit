@@ -1,3 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Tema claro compartilhado pelos painéis profissionais. */
+.tema-claro .bg-neutral-950,
+.tema-claro .bg-neutral-900,
+.tema-claro .bg-neutral-900\/80,
+.tema-claro .bg-neutral-900\/90,
+.tema-claro .bg-neutral-950\/60,
+.tema-claro .bg-neutral-950\/50 {
+  background-color: #ffffff !important;
+}
+
+.tema-claro .bg-black,
+.tema-claro .bg-black\/70,
+.tema-claro .bg-black\/60 {
+  background-color: #f3f4f6 !important;
+}
+
+.tema-claro .text-white,
+.tema-claro .text-neutral-200,
+.tema-claro .text-neutral-300 {
+  color: #111827 !important;
+}
+
+.tema-claro .text-neutral-400,
+.tema-claro .text-neutral-500 {
+  color: #6b7280 !important;
+}
+
+.tema-claro .border-neutral-800,
+.tema-claro .border-neutral-800\/80,
+.tema-claro .border-neutral-800\/60,
+.tema-claro .border-neutral-700 {
+  border-color: #e5e7eb !important;
+}
+
+.tema-claro .hover\:bg-neutral-800:hover,
+.tema-claro .hover\:bg-neutral-900:hover {
+  background-color: #f3f4f6 !important;
+}
