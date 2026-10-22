@@ -2,6 +2,8 @@
 
 ## Render único (opção atual)
 
+No Render com `SERVE_FRONTEND=true`, pode omitir `FRONTEND_URL`: a API usa `RENDER_EXTERNAL_URL` fornecida pela plataforma e valida HTTPS antes de iniciar. Não cadastrar manualmente `RENDER_EXTERNAL_URL`. Para domínio próprio ou frontend separado, definir `FRONTEND_URL` explicitamente.
+
 Site e API no mesmo Web Service: build `npm ci --include=dev && npm run build`, start `npm run migrate && npm start`, `SERVE_FRONTEND=true`, `IMAGE_STORAGE=database`, `BIND_HOST=0.0.0.0`, `NODE_ENV=production`, `NODE_VERSION=22`, `DB_SSL=true`, `VITE_API_URL=/api`. Definir `DATABASE_URL` pelo painel secreto e `FRONTEND_URL` com a URL HTTPS real atribuída ao serviço, sem barra final. O servidor entrega `dist` e o fallback React preservando os erros da API. O template Render usa Free; não usar o template Vercel nessa opção. O banco gratuito expira após 30 dias. Antes do deploy é necessário versionar e enviar os arquivos atualizados ao GitHub, sem credenciais ou dados pessoais.
 
 ## Atualização: Firebase adiado

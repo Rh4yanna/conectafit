@@ -21,7 +21,5 @@ services:
         value: database
       - key: SERVE_FRONTEND
         value: "true"
-      - key: FRONTEND_URL
-        sync: false
       - key: DATABASE_URL
         sync: false

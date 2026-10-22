@@ -1,5 +1,7 @@
 export function validarProducao(env) {
   if(env.NODE_ENV!=='production')return;
+  // Origem fornecida pelo ambiente Render, nunca por headers da requisição.
+  if(!env.FRONTEND_URL&&env.RENDER==='true'&&env.SERVE_FRONTEND==='true')env.FRONTEND_URL=env.RENDER_EXTERNAL_URL;
   const enderecos=(env.FRONTEND_URLS||env.FRONTEND_URL||'').split(',');
   const origemSegura=v=>{try{const u=new URL(v);return u.protocol==='https:'&&u.origin===v&&!u.username&&!u.password&&!u.hostname.includes('*')&&!['localhost','127.0.0.1','[::1]'].includes(u.hostname);}catch{return false;}};
   if(!origemSegura(env.FRONTEND_URL)||enderecos.some(v=>!origemSegura(v.trim())))throw new Error('Producao exige FRONTEND_URL e origens HTTPS explicitas, sem caminho ou curinga.');

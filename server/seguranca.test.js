@@ -20,6 +20,10 @@ test('senhas respeitam bytes UTF-8 sem truncamento silencioso', () => {
 test('publicacao recusa configuracao insegura',()=>{
   const config={NODE_ENV:'production',FRONTEND_URL:'https://conectafit.example',DB_HOST:'127.0.0.1',IMAGE_STORAGE:'firebase',FIREBASE_STORAGE_BUCKET:'bucket-teste'};
   assert.doesNotThrow(()=>validarProducao(config));
+  const render={...config,FRONTEND_URL:'',RENDER:'true',SERVE_FRONTEND:'true',RENDER_EXTERNAL_URL:'https://conectafit-teste.onrender.com'};
+  assert.doesNotThrow(()=>validarProducao(render));
+  assert.equal(render.FRONTEND_URL,render.RENDER_EXTERNAL_URL);
+  assert.throws(()=>validarProducao({...render,FRONTEND_URL:'',RENDER_EXTERNAL_URL:'http://inseguro.example'}));
   assert.doesNotThrow(()=>validarProducao({...config,IMAGE_STORAGE:'database',FIREBASE_STORAGE_BUCKET:''}));
   for(const extra of [{IMAGE_STORAGE:''},{IMAGE_STORAGE:'desconhecido'},{FIREBASE_STORAGE_BUCKET:''}])assert.throws(()=>validarProducao({...config,...extra}));
   for(const extra of [{FRONTEND_URL:'http://conectafit.example'},{FRONTEND_URL:'https://conectafit.example/caminho'},{FRONTEND_URLS:'https://*.example'},{DB_HOST:'db.example',DB_SSL:'false'},{DEMO_PASSWORD:'teste'},{VITE_API_URL:'https://outra.example/api'}])assert.throws(()=>validarProducao({...config,...extra}));
