@@ -4,12 +4,43 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.js",
+    "dev:client": "vite",
+    "server": "node server/server.js",
     "build": "vite build",
     "migrate": "node server/migrate.js",
     "security:test": "node server/security-smoke.js",
+    "security:test:integracao": "node --test server/seguranca.test.js",
+    "security:test:ui": "node scripts/testar-sessoes-seguras.mjs",
+    "security:publicacao": "node scripts/verificar-publicacao.mjs",
+    "test:treinos": "node --test server/sessoes-treino.test.js",
+    "test:treinos:ui": "node scripts/testar-treinos.mjs",
+    "test:treinos:completo": "node scripts/testar-treinos-completo.mjs",
+    "test:alimentacao": "node --test server/alimentacao.test.js",
+    "test:alimentacao:ui": "node scripts/testar-alimentacao.mjs",
+    "test:nutri": "node --test server/nutricao.test.js",
+    "test:nutri:ui": "node scripts/testar-nutricao.mjs",
+    "test:academia": "node --test server/academia.test.js",
+    "test:academia:ui": "node scripts/testar-academia.mjs",
+    "test:qualidade": "node --test server/qualidade.test.js",
+    "test:qualidade:ui": "node scripts/testar-qualidade.mjs",
+    "test:personal": "node --test server/personal.test.js server/gestao-fichas.test.js server/acompanhamento-personal.test.js server/gestao-profissional.test.js",
+    "test:gestao:ui": "node scripts/testar-gestao-profissional.mjs",
+    "test:acompanhamento:ui": "node scripts/testar-acompanhamento-personal.mjs",
+    "test:personal:ui": "node scripts/testar-personal.mjs",
+    "test:rotina": "node --test server/rotina.test.js",
+    "test:rotina:ui": "node scripts/testar-rotina.mjs",
+    "test:busca": "node --test server/servicos.test.js",
+    "test:busca:ui": "node scripts/testar-busca.mjs",
+    "test:evolucao": "node --test server/evolucao.test.js",
+    "test:evolucao:ui": "node scripts/testar-evolucao.mjs",
+    "sync:exercicios": "node scripts/sincronizar-exercicios.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server/server.js",
+    "test:storage": "node --test server/imagens-storage.test.js",
+    "imagens:migrar": "node scripts/migrar-imagens.mjs",
+    "imagens:limpar": "node scripts/limpar-imagens.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -17,19 +48,23 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
+    "firebase-admin": "^14.5.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.31.0",
-    "nodemailer": "^9.0.6",
+    "nodemailer": "^10.0.10",
     "pg": "^8.23.0",
+    "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
+    "@playwright/test": "^1.63.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
     "eslint-plugin-react": "^7.35.0",
@@ -38,6 +73,9 @@
     "globals": "^15.9.0",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.10",
-    "vite": "^5.4.1"
+    "vite": "^6.4.3"
+  },
+  "engines": {
+    "node": ">=22 <25"
   }
 }

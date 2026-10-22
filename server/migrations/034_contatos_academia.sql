@@ -1,0 +1,2 @@
+ALTER TABLE perfis_academia ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(300);
+ALTER TABLE perfis_academia ADD COLUMN IF NOT EXISTS instagram VARCHAR(300);

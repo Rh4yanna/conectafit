@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:where(button,a,input,select,textarea,summary,[tabindex]):focus-visible { outline:3px solid #0284c7; outline-offset:3px; }
+html.dark :where(button,a,input,select,textarea,summary,[tabindex]):focus-visible { outline-color:#7dd3fc; }
+button:disabled { cursor:not-allowed; }
+input,select,textarea { max-width:100%; }
+html.dark input,html.dark select,html.dark textarea { color-scheme:dark; }
+.pular-conteudo { position:fixed;top:8px;left:8px;transform:translateY(-150%);z-index:1000;background:#fff;color:#111827;padding:12px;border:2px solid #0284c7;border-radius:8px; }
+.pular-conteudo:focus { transform:translateY(0); }
+.aviso-global { background:#fef3c7;color:#78350f;padding:12px 20px; }
+.aviso-global { position:fixed; bottom:1rem; left:1rem; right:1rem; z-index:100; border-radius:12px; box-shadow:0 8px 30px #0003; }
+.acao-secundaria { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-height:40px; padding:.5rem .875rem; border:1px solid #64748b55; border-radius:.75rem; text-decoration:none; font-size:.875rem; font-weight:600; line-height:1.4; transition:background-color .15s; }
+.acao-secundaria:hover { background-color:#64748b18; text-decoration:none; }
+.acao-secundaria:disabled { opacity:.5; }
+.botao-paginacao { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:.625rem 1rem; border:1px solid #64748b55; border-radius:.75rem; background:transparent; color:inherit; font-size:.875rem; font-weight:600; }
+.botao-paginacao:hover:not(:disabled) { background:#64748b18; border-color:#0ea5e9; }
+.botao-paginacao:disabled { opacity:.55; cursor:not-allowed; }
+main,#conteudo-principal { scroll-margin-top:7rem; }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important;animation-iteration-count:1!important; } }
+
 /* Tema claro compartilhado pelos painéis profissionais. */
 .tema-claro .bg-neutral-950,
 .tema-claro .bg-neutral-900,
@@ -12,9 +30,7 @@
   background-color: #ffffff !important;
 }
 
-.tema-claro .bg-black,
-.tema-claro .bg-black\/70,
-.tema-claro .bg-black\/60 {
+.tema-claro .bg-black {
   background-color: #f3f4f6 !important;
 }
 
@@ -40,3 +56,41 @@
 .tema-claro .hover\:bg-neutral-900:hover {
   background-color: #f3f4f6 !important;
 }
+
+html.light { background:#f3f4f6; color:#111827; }
+html.dark { background:#000; color:#f5f5f5; }
+.tema-claro [class~="bg-neutral-800"],
+.tema-claro [class~="bg-neutral-900/50"],
+.tema-claro [class~="bg-neutral-900/40"],
+.tema-claro [class~="bg-neutral-900/95"],
+.tema-claro [class~="bg-[#0e0e10]"],
+.tema-claro [class~="bg-[#0a0a0a]"] { background-color:#fff !important; }
+.tema-claro [class~="from-neutral-900"] { --tw-gradient-from:#fff !important; }
+.tema-claro [class~="to-neutral-950"] { --tw-gradient-to:#f3f4f6 !important; }
+.tema-claro .text-neutral-100 {color:#111827 !important;}
+.tema-claro input, .tema-claro select, .tema-claro textarea {color-scheme:light;}
+
+/* Combinações compartilhadas para texto pequeno e botões de ação. */
+html.dark .text-neutral-500 { color:#a3a3a3; }
+html.light .text-sky-500 { color:#0369a1; }
+html.light .text-emerald-400,html.light .text-emerald-500,html.light .text-green-400 { color:#047857; }
+html.light .text-red-400 { color:#b91c1c; }
+html.light .text-orange-400,html.light .text-orange-500 { color:#9a3412; }
+[class~="bg-[#00AEFF]"].text-white { color:#082f49!important; }
+.bg-sky-600.text-white,.tema-claro .bg-sky-600.text-white { background-color:#0369a1;color:white!important; }
+.bg-emerald-600.text-white,.tema-claro .bg-emerald-600.text-white { background-color:#047857;color:white!important; }
+
+/* O login mantém a paleta da logo, independente do tema dos painéis. */
+html .pagina-login.text-white,
+html .pagina-login .text-white { color:#f5f5f5 !important; }
+html .pagina-login .text-neutral-200,
+html .pagina-login .text-neutral-300 { color:#d4d4d4 !important; }
+html .pagina-login .text-neutral-400,
+html .pagina-login .text-neutral-500 { color:#a3a3a3 !important; }
+html .pagina-login .bg-neutral-950 { background-color:#0a0a0a !important; }
+html .pagina-login .border-neutral-800 { border-color:#343434 !important; }
+html .pagina-login input { color-scheme:dark; }
+html .pagina-login input::placeholder { color:#a3a3a3; opacity:1; }
+html .pagina-login button[type="submit"] { color:#082f49 !important; }
+
+html { scroll-padding-bottom: var(--espaco-menu-inferior, 1rem); }

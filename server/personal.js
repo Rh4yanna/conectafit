@@ -1,0 +1,92 @@
+import {evolucaoPersonal} from './evolucao-personal.js';
+import {gestaoPainelPersonal} from './gestao-painel-personal.js';
+import {rotasFeedbacksPersonal} from './feedbacks-personal.js';
+import {gestaoFichas} from './gestao-fichas.js';
+import {Router} from 'express';
+import {Buffer} from 'node:buffer';
+import {exercicioCatalogo,normalizarBusca,normalizarFicha,diasValidos} from './biblioteca-exercicios.js';
+import {dataValida,hojeEvolucao} from './evolucao.js';
+const falha=(m,status=400)=>Object.assign(new Error(m),{status});
+const id=v=>/^\d+$/.test(String(v))&&Number.isSafeInteger(Number(v))&&Number(v)>0;
+const texto=(v,max=2000,obrigatorio=false)=>{if(v==null&&!obrigatorio)return '';if(typeof v!=='string'||v.length>max||(obrigatorio&&!v.trim()))throw falha(`Preencha os textos obrigatórios e use até ${max} caracteres por campo.`);return v.trim();};
+const lista=(v,max=20,tamanho=80)=>{if(!Array.isArray(v)||v.length>max)throw falha(`Use até ${max} itens por campo.`);return [...new Map(v.map(x=>{const t=texto(x,tamanho,true);return[normalizarBusca(t),t];})).values()];};
+const uuid=v=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+const transacao=async(db,f)=>{const c=await db.connect();try{await c.query('BEGIN');const r=await f(c);await c.query('COMMIT');return r;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}};
+async function acesso(db,u,aluno){if(u.tipo_usuario!=='personal'||!id(aluno))throw falha('Acesso exclusivo do personal responsável.',403);const c=(await db.query("SELECT ciclo FROM conexoes_alunos WHERE personal_id=$1 AND aluno_id=$2 AND status='aceito' AND ativo AND permite_treinos",[u.id,aluno])).rows[0];if(!c)throw falha('O aluno precisa manter o vínculo ativo e autorizar treinos.',403);return c;}
+export function validarAvaliacao(b){
+ const objetivos=lista(b.objetivos,10,120);if(!objetivos.length||!['nao_informada','iniciante','intermediario','avancado','retorno'].includes(b.experiencia))throw falha('Informe pelo menos um objetivo e o nível de experiência relatado.');
+ if(!dataValida(b.data)||b.data>hojeEvolucao())throw falha('Informe uma data de avaliação válida, até hoje.');
+ if(!Array.isArray(b.disponibilidade)||b.disponibilidade.length>21)throw falha('Use até 21 faixas de disponibilidade.');
+ const hora=v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+ const disponibilidade=b.disponibilidade.map(d=>{if(!d||!Number.isInteger(d.dia)||d.dia<0||d.dia>6||!hora(d.inicio)||!hora(d.fim)||d.inicio>=d.fim)throw falha('Informe dias e horários válidos.');return {dia:d.dia,inicio:d.inicio,fim:d.fim};}).sort((a,b)=>a.dia-b.dia||a.inicio.localeCompare(b.inicio));
+ if(disponibilidade.some((d,i)=>i&&d.dia===disponibilidade[i-1].dia&&d.inicio<disponibilidade[i-1].fim))throw falha('As faixas de disponibilidade não podem se sobrepor.');
+ const duracao=b.duracao_sessao===''||b.duracao_sessao==null?null:Number(b.duracao_sessao);if(duracao!==null&&(!Number.isInteger(duracao)||duracao<10||duracao>240))throw falha('Duração de sessão deve ser de 10 a 240 minutos.');
+ if(!['nao_informado','sem_limitacoes_relatadas','com_limitacoes_relatadas'].includes(b.situacao_limitacoes))throw falha('Informe a situação do relato de limitações.');const limitacoes=texto(b.limitacoes,3000);if(b.situacao_limitacoes==='com_limitacoes_relatadas'&&!limitacoes)throw falha('Descreva as limitações relatadas.');
+ return {data:b.data,objetivos,experiencia:b.experiencia,experiencia_detalhes:texto(b.experiencia_detalhes),disponibilidade,duracao_sessao:duracao,equipamentos:lista(b.equipamentos),situacao_limitacoes:b.situacao_limitacoes,limitacoes,preferencias:texto(b.preferencias),observacoes:texto(b.observacoes),rotina:texto(b.rotina),sono:texto(b.sono),saude:texto(b.saude),medicamentos:texto(b.medicamentos)};
+}
+export function validarVideo(b){
+ if(!b||typeof b!=='object'||Array.isArray(b)||!uuid(b.chave_cliente)||b.autoria_confirmada!==true)throw falha('Confirme que possui autorização para compartilhar a demonstração.');
+ const match=typeof b.video==='string'&&/^data:(video\/(?:mp4|webm));base64,([A-Za-z0-9+/]+={0,2})$/.exec(b.video);if(!match||match[2].length>13981016)throw falha('Envie um vídeo MP4 ou WebM de até 10 MB.');const bytes=Buffer.from(match[2],'base64');if(bytes.length<16||bytes.length>10485760||bytes.toString('base64')!==match[2])throw falha('Vídeo inválido ou maior que 10 MB.');
+ const mp4=bytes.subarray(4,8).toString('ascii')==='ftyp',webm=bytes.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]));if((match[1]==='video/mp4'&&!mp4)||(match[1]==='video/webm'&&!webm))throw falha('O conteúdo não corresponde ao formato do vídeo informado.');
+ const catalogo=b.catalogo_id?exercicioCatalogo(b.catalogo_id):null;if(b.catalogo_id&&!catalogo)throw falha('Exercício da biblioteca inválido.');
+ const equipamentos=lista(b.equipamentos);if(!equipamentos.length)throw falha('Informe o equipamento ou escreva Sem equipamento.');
+ return {catalogo_id:catalogo?.id||null,nome:catalogo?.nome||texto(b.nome,120,true),grupo:catalogo?.grupo||texto(b.grupo,80,true),equipamentos,variacao:texto(b.variacao,160),instrucoes:texto(b.instrucoes,3000,true),mime:match[1],bytes};
+}
+const colunasVideo='d.id,d.personal_id,d.catalogo_id,d.nome,d.grupo,d.equipamentos,d.variacao,d.instrucoes,d.mime,d.tamanho,d.arquivada,d.criada_em,u.nome AS autor_nome';
+export async function enviarDemonstracao(db,u,b){if(u.tipo_usuario!=='personal')throw falha('Disponível para personal trainers.',403);const v=validarVideo(b);return transacao(db,async c=>{await c.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE',[u.id]);const anterior=(await c.query(`SELECT ${colunasVideo} FROM demonstracoes_personal d JOIN usuarios u ON u.id=d.personal_id WHERE d.personal_id=$1 AND d.chave_cliente=$2`,[u.id,b.chave_cliente])).rows[0];if(anterior)return anterior;
+ const total=(await c.query('SELECT COALESCE(SUM(tamanho),0)::bigint AS total FROM demonstracoes_personal WHERE personal_id=$1',[u.id])).rows[0].total;if(Number(total)+v.bytes.length>104857600)throw falha('Limite de 100 MB de demonstrações por personal atingido.');
+ const r=(await c.query(`INSERT INTO demonstracoes_personal(personal_id,chave_cliente,catalogo_id,nome,grupo,equipamentos,variacao,instrucoes,mime,tamanho,conteudo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,[u.id,b.chave_cliente,v.catalogo_id,v.nome,v.grupo,JSON.stringify(v.equipamentos),v.variacao,v.instrucoes,v.mime,v.bytes.length,v.bytes])).rows[0];return (await c.query(`SELECT ${colunasVideo} FROM demonstracoes_personal d JOIN usuarios u ON u.id=d.personal_id WHERE d.id=$1`,[r.id])).rows[0];});}
+async function salvarFicha(db,u,aluno,b,fichaId=null){
+ if(!id(aluno))throw falha('Aluno inválido.');const titulo=texto(b.titulo,120,true),objetivo=texto(b.objetivo,2000),motivo=texto(b.motivo,1000);if(!Number.isInteger(b.versao)||b.versao<0||!id(b.avaliacao_id)||!Number.isInteger(b.avaliacao_versao)||!diasValidos(b.dias_semana)||!Array.isArray(b.exercicios)||b.exercicios.length<1||b.exercicios.length>50)throw falha('Informe a avaliação, os dias e de 1 a 50 exercícios.');
+ return transacao(db,async c=>{await c.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE',[aluno]);const v=await acesso(c,u,aluno);const avaliacao=(await c.query('SELECT * FROM avaliacoes_personal WHERE id=$1 AND aluno_id=$2 AND personal_id=$3 AND ciclo=$4',[b.avaliacao_id,aluno,u.id,v.ciclo])).rows[0];if(!avaliacao||avaliacao.versao!==b.avaliacao_versao)throw falha('A avaliação mudou ou não está disponível. Recarregue antes de prescrever.',409);
+ let anterior;if(fichaId){if(!id(fichaId))throw falha('Ficha inválida.');anterior=(await c.query("SELECT * FROM treinos WHERE id=$1 AND usuario_id=$2 AND personal_id=$3 AND origem='personal' FOR UPDATE",[fichaId,aluno,u.id])).rows[0];if(!anterior)throw falha('Ficha não encontrada.',404);if(anterior.versao_profissional!==b.versao)throw falha('A ficha mudou. Recarregue antes de salvar.',409);if(!motivo)throw falha('Informe o motivo da revisão.');}else if(b.versao!==0)throw falha('Versão inicial inválida.',409);
+ if(anterior?.arquivada)throw falha('Reative a ficha antes de revisar.',409);
+ const inicio=b.inicio_em||null,fim=b.fim_em||null,revisao=b.revisao_em||null;if(revisao&&!dataValida(revisao,true))throw falha('Data de revisão inválida.');if((inicio&&!dataValida(inicio,true))||(fim&&!dataValida(fim,true))||(inicio&&fim&&fim<inicio))throw falha('Período inválido.');
+ const normalizados=[];
+ for(const ex of b.exercicios){
+  if(!ex||typeof ex.nome!=='string'||!ex.nome.trim()||ex.nome.length>120||!Number.isInteger(Number(ex.series))||Number(ex.series)<1||Number(ex.series)>30)throw falha('Cada exercício precisa de nome e de 1 a 30 séries.');
+  const base=normalizarFicha([ex],anterior?.exercicios||[])[0],catalogo=base.catalogo_id?exercicioCatalogo(base.catalogo_id):null,variacao=texto(ex.variacao,160),equipamento=texto(ex.equipamento,160);
+  let demonstracao=null;if(ex.demonstracao_propria_id){if(!id(ex.demonstracao_propria_id))throw falha('Demonstração inválida.');demonstracao=(await c.query(`SELECT ${colunasVideo} FROM demonstracoes_personal d JOIN usuarios u ON u.id=d.personal_id WHERE d.id=$1 AND d.personal_id=$2 AND NOT d.arquivada`,[ex.demonstracao_propria_id,u.id])).rows[0];if(!demonstracao)throw falha('Demonstração própria indisponível. Selecione novamente.');if((demonstracao.catalogo_id||null)!==(base.catalogo_id||null)||(!base.catalogo_id&&normalizarBusca(demonstracao.nome)!==normalizarBusca(base.nome))||normalizarBusca(demonstracao.variacao)!==normalizarBusca(variacao)||!demonstracao.equipamentos.some(e=>normalizarBusca(e)===normalizarBusca(equipamento)))throw falha('A demonstração própria precisa corresponder ao movimento, à variação e ao equipamento prescritos.');}
+  if(!demonstracao&&!catalogo?.videos?.length)throw falha('Todos os exercícios precisam de vídeo da biblioteca ou demonstração própria antes de publicar.');
+  if(ex.video_url&&(!catalogo||!catalogo.videos.some(v=>v.url===ex.video_url)))throw falha('O vídeo escolhido não pertence a este exercício da biblioteca.');
+  if((catalogo||demonstracao)&&ex.demonstracao_conferida!==true)throw falha('Confira movimento, variação, equipamento e demonstração de cada exercício antes de publicar.');
+  if(!base.orientacoes.trim()&&!catalogo?.instrucoes?.trim()&&!demonstracao?.instrucoes?.trim())throw falha('Adicione instruções em texto para os exercícios sem instruções na fonte.');
+  if(!base.repeticoes.trim())throw falha('Informe repetições ou duração para cada exercício.');
+  const snapshot=catalogo?{...catalogo,videos:ex.video_url?catalogo.videos.filter(v=>v.url===ex.video_url):catalogo.videos}:null;
+  const descanso=ex.descanso_segundos==null||ex.descanso_segundos===''?null:Number(ex.descanso_segundos);if(descanso!==null&&(!Number.isInteger(descanso)||descanso<0||descanso>3600))throw falha('Descanso deve ser de 0 a 3600 segundos.');
+  normalizados.push({...base,grupo:catalogo?.grupo||demonstracao?.grupo||texto(ex.grupo,80),descanso_segundos:descanso,variacao,equipamento,demonstracao_catalogo:snapshot,demonstracao_propria:demonstracao,conferencia:catalogo||demonstracao?{autor_id:u.id,autor_nome:u.nome,data:new Date().toISOString(),video_url:ex.video_url||null}:null});
+ }
+ if(new Set(normalizados.map(e=>e.id_exercicio)).size!==normalizados.length)throw falha('A mesma identidade de exercício foi repetida. Adicione o movimento novamente pela biblioteca.');
+ const referencia={id:avaliacao.id,versao:avaliacao.versao,data:avaliacao.conteudo.data};let ficha;
+ if(anterior){await c.query('INSERT INTO revisoes_fichas_personal(treino_id,versao,conteudo,motivo) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[anterior.id,anterior.versao_profissional,JSON.stringify(anterior),'Estado anterior da ficha']);ficha=(await c.query('UPDATE treinos SET titulo=$1,exercicios=$2,dias_semana=$3,avaliacao_referencia=$4,versao_profissional=versao_profissional+1 WHERE id=$5 RETURNING *',[titulo,JSON.stringify(normalizados),b.dias_semana,JSON.stringify(referencia),anterior.id])).rows[0];}
+ else ficha=(await c.query("INSERT INTO treinos(usuario_id,titulo,exercicios,origem,criado_por,personal_id,dias_semana,avaliacao_referencia) VALUES($1,$2,$3,'personal',$4,$5,$6,$7) RETURNING *",[aluno,titulo,JSON.stringify(normalizados),u.nome,u.id,b.dias_semana,JSON.stringify(referencia)])).rows[0];
+ ficha=(await c.query('UPDATE treinos SET inicio_em=$1,fim_em=$2,revisao_em=$4,objetivo=$5 WHERE id=$3 RETURNING *',[inicio,fim,ficha.id,revisao,objetivo])).rows[0];
+ if(b.rascunho_id){const removido=await c.query('DELETE FROM rascunhos_fichas_personal WHERE id=$1 AND personal_id=$2 AND aluno_id=$3 AND ciclo=$4 AND versao=$5 RETURNING id',[b.rascunho_id,u.id,aluno,v.ciclo,b.rascunho_versao]);if(!removido.rows.length)throw falha('O rascunho mudou. Recarregue.',409);}
+ await c.query('INSERT INTO revisoes_fichas_personal(treino_id,versao,conteudo,motivo) VALUES($1,$2,$3,$4)',[ficha.id,ficha.versao_profissional,JSON.stringify(ficha),motivo||'Primeira prescrição']);return ficha;
+ });
+}
+export function rotasPersonal(db){
+ const r=Router();r.use((_q,s,n)=>{s.set('Cache-Control','no-store');n();});const rota=f=>async(q,s)=>{try{await f(q,s);}catch(e){if(!e.status)console.error('Personal:',e.message);s.status(e.status||500).json({message:e.status?e.message:'Não foi possível atualizar os dados do personal.'});}};
+ r.get('/alunos/:aluno/avaliacao',rota(async(q,s)=>{const v=await acesso(db,q.usuario,q.params.aluno);s.json((await db.query('SELECT * FROM avaliacoes_personal WHERE personal_id=$1 AND aluno_id=$2 AND ciclo=$3',[q.usuario.id,q.params.aluno,v.ciclo])).rows[0]||null);}));
+ r.put('/alunos/:aluno/avaliacao',rota(async(q,s)=>{if(!id(q.params.aluno))throw falha('Aluno inválido.');const conteudo=validarAvaliacao(q.body),motivo=texto(q.body.motivo,1000);if(!Number.isInteger(q.body.versao)||q.body.versao<0)throw falha('Recarregue a avaliação.',409);
+  s.json(await transacao(db,async c=>{await c.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE',[q.params.aluno]);const v=await acesso(c,q.usuario,q.params.aluno);const anterior=(await c.query('SELECT * FROM avaliacoes_personal WHERE personal_id=$1 AND aluno_id=$2 AND ciclo=$3 FOR UPDATE',[q.usuario.id,q.params.aluno,v.ciclo])).rows[0];if((anterior?.versao||0)!==q.body.versao)throw falha('A avaliação mudou. Recarregue antes de salvar.',409);if(anterior&&!motivo)throw falha('Informe o motivo da atualização.');const a=(await c.query(`INSERT INTO avaliacoes_personal(personal_id,aluno_id,ciclo,conteudo) VALUES($1,$2,$3,$4) ON CONFLICT(personal_id,aluno_id,ciclo) DO UPDATE SET conteudo=$4,versao=avaliacoes_personal.versao+1,atualizada_em=NOW() RETURNING *`,[q.usuario.id,q.params.aluno,v.ciclo,JSON.stringify(conteudo)])).rows[0];await c.query('INSERT INTO revisoes_avaliacao_personal(avaliacao_id,versao,conteudo,motivo) VALUES($1,$2,$3,$4)',[a.id,a.versao,JSON.stringify(conteudo),motivo||'Avaliação inicial']);return a;}));
+ }));
+ r.get('/alunos/:aluno/avaliacao/historico',rota(async(q,s)=>{const v=await acesso(db,q.usuario,q.params.aluno);const offset=Number(q.query.offset||0);if(!Number.isSafeInteger(offset)||offset<0)throw falha('Página inválida.');const r=await db.query(`SELECT h.* FROM revisoes_avaliacao_personal h JOIN avaliacoes_personal a ON a.id=h.avaliacao_id WHERE a.personal_id=$1 AND a.aluno_id=$2 AND a.ciclo=$3 ORDER BY h.versao DESC LIMIT 21 OFFSET $4`,[q.usuario.id,q.params.aluno,v.ciclo,offset]);s.json({revisoes:r.rows.slice(0,20),tem_mais:r.rows.length>20});}));
+ r.get('/alunos/:aluno/fichas',rota(async(q,s)=>{await acesso(db,q.usuario,q.params.aluno);s.json((await db.query("SELECT * FROM treinos WHERE usuario_id=$1 AND personal_id=$2 AND origem='personal' AND excluida_em IS NULL ORDER BY criado_em DESC,id DESC",[q.params.aluno,q.usuario.id])).rows);}));
+ r.post('/alunos/:aluno/fichas',rota(async(q,s)=>s.status(201).json(await salvarFicha(db,q.usuario,q.params.aluno,q.body))));
+ r.put('/alunos/:aluno/fichas/:id',rota(async(q,s)=>s.json(await salvarFicha(db,q.usuario,q.params.aluno,q.body,q.params.id))));
+ r.get('/demonstracoes',rota(async(q,s)=>{const offset=Number(q.query.offset||0);if(!Number.isSafeInteger(offset)||offset<0)throw falha('Página inválida.');const lista=(await db.query(`SELECT ${colunasVideo} FROM demonstracoes_personal d JOIN usuarios u ON u.id=d.personal_id WHERE d.personal_id=$1 AND ($2::boolean OR NOT d.arquivada) ORDER BY d.criada_em DESC,d.id DESC LIMIT 21 OFFSET $3`,[q.usuario.id,q.query.arquivadas==='true',offset])).rows;s.json({demonstracoes:lista.slice(0,20),tem_mais:lista.length>20});}));
+ r.patch('/demonstracoes/:id',rota(async(q,s)=>{if(!id(q.params.id)||typeof q.body.arquivada!=='boolean')throw falha('Demonstração inválida.');const d=(await db.query('UPDATE demonstracoes_personal SET arquivada=$1 WHERE id=$2 AND personal_id=$3 RETURNING id,arquivada',[q.body.arquivada,q.params.id,q.usuario.id])).rows[0];if(!d)throw falha('Demonstração não encontrada.',404);s.json(d);}));
+ r.use(rotasFeedbacksPersonal(db));
+ r.use(gestaoPainelPersonal(db));
+ r.use(evolucaoPersonal(db));
+ gestaoFichas(r,db,{acesso,transacao,falha});
+ return r;
+}
+export async function servirVideo(db,q,s){
+ try{if(!id(q.params.id))throw falha('Vídeo inválido.');const u=q.usuario;
+  let autorizado=false;if(u.tipo_usuario==='personal')autorizado=(await db.query('SELECT id FROM demonstracoes_personal WHERE id=$1 AND personal_id=$2',[q.params.id,u.id])).rows.length>0;
+  else if(u.tipo_usuario==='aluno')autorizado=(await db.query(`SELECT 1 FROM treinos t WHERE t.usuario_id=$1 AND EXISTS(SELECT 1 FROM jsonb_array_elements(t.exercicios::jsonb) e WHERE e->'demonstracao_propria'->>'id'=$2) UNION ALL SELECT 1 FROM sessoes_treino t WHERE t.aluno_id=$1 AND EXISTS(SELECT 1 FROM jsonb_array_elements(t.exercicios::jsonb) e WHERE e->'demonstracao_propria'->>'id'=$2) LIMIT 1`,[u.id,q.params.id])).rows.length>0;
+  if(!autorizado)throw falha('Vídeo não disponível para esta conta.',404);const d=(await db.query('SELECT mime,conteudo FROM demonstracoes_personal WHERE id=$1',[q.params.id])).rows[0];if(!d)throw falha('Vídeo não encontrado.',404);s.set({'Cache-Control':'private, no-store','Content-Type':d.mime,'Content-Disposition':'inline','X-Content-Type-Options':'nosniff'}).send(d.conteudo);
+ }catch(e){s.status(e.status||500).json({message:e.status?e.message:'Não foi possível carregar o vídeo. Consulte as instruções em texto.'});}
+}

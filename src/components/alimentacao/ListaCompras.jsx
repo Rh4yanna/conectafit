@@ -1,0 +1,14 @@
+import MensagemTemporaria from '../MensagemTemporaria';
+/* eslint-disable react/prop-types */
+import { useEffect,useState } from 'react';
+import { useTheme } from '../../context/ThemeContext';
+import ModalAlimentacao from './ModalAlimentacao';
+import { alimentacao,quantidade } from './comum';
+export default function ListaCompras({plano,onClose}){
+  const {temaEscuro}=useTheme();const [dias,setDias]=useState(7),[lista,setLista]=useState(null),[erro,setErro]=useState(''),[marcados,setMarcados]=useState({});
+  useEffect(()=>{let ativo=true;setLista(null);setErro('');setMarcados({});alimentacao(`/planos/${plano.id}/compras?dias=${dias}&versao=${plano.versao}`).then(d=>{if(ativo)setLista(d);}).catch(e=>{if(ativo)setErro(e.message);});return()=>{ativo=false;};},[plano.id,plano.versao,dias]);
+  const exportar=()=>{const texto=[`${plano.titulo} · versão ${plano.versao} · ${dias} dias`,'Quantidades do cardápio diário repetido; substituições não somadas.',...lista.itens.map((i,n)=>`${marcados[n]?'[x]':'[ ]'} ${i.nome}: ${quantidade(i)}`),...lista.sem_quantidades.map(n=>`Conferir manualmente: ${n}`)].join('\n');const url=URL.createObjectURL(new Blob([texto],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lista-de-compras.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  return <ModalAlimentacao titulo="Lista de compras" onClose={onClose}><div className="space-y-4"><p>{plano.titulo} · versão {plano.versao}</p><p className="text-sm">As quantidades consideram o cardápio inteiro repetido em cada dia. Substituições não são somadas; ajuste sua compra se escolher uma alternativa. Alimentos com unidades diferentes ficam separados.</p><label className="block">Quantidade de dias<select className={`block border rounded-lg p-3 mt-1 ${temaEscuro?'bg-neutral-950':'bg-white'}`} value={dias} onChange={e=>setDias(Number(e.target.value))}>{Array.from({length:30},(_,n)=><option key={n+1}>{n+1}</option>)}</select></label>
+    {erro?<MensagemTemporaria as="p" role="alert">{erro}</MensagemTemporaria>:!lista?<p role="status">Calculando lista...</p>:<><ul className="space-y-3">{lista.itens.map((a,i)=><li key={i}><label className="flex items-center gap-3"><input type="checkbox" checked={!!marcados[i]} onChange={e=>setMarcados({...marcados,[i]:e.target.checked})}/><span className={marcados[i]?'line-through opacity-60':''}>{a.nome} · {quantidade(a)}</span></label></li>)}</ul>{!lista.itens.length&&<p>Nenhum alimento com quantidade estruturada neste plano.</p>}{lista.sem_quantidades.length>0&&<p className="text-amber-600">Confira manualmente as refeições sem quantidades estruturadas: {lista.sem_quantidades.join(', ')}.</p>}<p className="text-xs">As marcações ficam nesta tela. Baixe a lista para guardar uma cópia.</p><button onClick={exportar} className="bg-sky-600 rounded-lg p-3 text-white">Baixar lista de compras</button></>}
+  </div></ModalAlimentacao>;
+}

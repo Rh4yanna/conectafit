@@ -1,0 +1,8 @@
+rules_version = '2';
+service firebase.storage {
+ match /b/{bucket}/o {
+  // Todo acesso passa pela API e pelas sessões do ConectaFit.
+  // Admin SDK usa IAM e não estas regras: restrinja a conta ao bucket.
+  match /{allPaths=**} { allow read, write: if false; }
+ }
+}

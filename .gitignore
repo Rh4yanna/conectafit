@@ -10,8 +10,21 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+test-results
+playwright-report
 *.local
 .env
+.env.*
+!.env.example
+!*.env.example
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+secrets/
+*.pem
+*.key
+*.dump
+*.backup
 
 # Editor directories and files
 .vscode/*

@@ -1,30 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Save, Target } from 'lucide-react';
+import ProgressoAluno from '../../components/aluno/ProgressoAluno';
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+import { useCallback,useEffect,useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../config/api';
-
-const camposMeta = [
-  ['peso_meta','Peso desejado (kg)'],['cintura_meta','Cintura desejada (cm)'],
-  ['braco_meta','Braço desejado (cm)'],['quadril_meta','Quadril desejado (cm)'],
-  ['percentual_gordura_meta','Gordura corporal desejada (%)'],['agua_litros','Água por dia (litros)'],
-  ['treinos_semana','Treinos por semana'],['refeicoes_semana','Refeições corretas por semana']
-];
-
+import { useTheme } from '../../context/ThemeContext';
+import { evolucao,nomesMetas,numero } from '../../components/evolucao/comum';
+import HidratacaoAluno from '../../components/evolucao/HidratacaoAluno';
+import ObjetivosAluno from '../../components/evolucao/ObjetivosAluno';
+import GraficosEvolucao from '../../components/evolucao/GraficosEvolucao';
+import RevisoesMetas from '../../components/evolucao/RevisoesMetas';
+import ComentariosEvolucao from '../../components/evolucao/ComentariosEvolucao';
 export default function MetasAluno(){
-  const navigate=useNavigate();
-  const [meta,setMeta]=useState({agua_litros:2,treinos_semana:3,refeicoes_semana:14});
-  const [progresso,setProgresso]=useState({agua_litros:0,treinos_concluidos:0,refeicoes_corretas:0});
-  const [mensagem,setMensagem]=useState('');
-  useEffect(()=>{apiFetch('/aluno/metas').then(r=>r.json()).then(d=>{if(d.meta)setMeta(d.meta);if(d.progresso)setProgresso(d.progresso);});},[]);
-  const salvar=async(e)=>{e.preventDefault();setMensagem('');const [a,b]=await Promise.all([
-    apiFetch('/aluno/metas',{method:'PUT',body:JSON.stringify(meta)}),apiFetch('/aluno/progresso',{method:'PUT',body:JSON.stringify(progresso)})
-  ]);setMensagem(a.ok&&b.ok?'Metas e progresso salvos.':'Não foi possível salvar.');};
-  const input='w-full mt-2 rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 outline-none focus:border-[#00AEFF]';
-  return <main className="min-h-screen bg-black text-white p-5 lg:p-10 pb-24">
-    <div className="max-w-5xl mx-auto"><button onClick={()=>navigate('/aluno/dashboard')} className="flex gap-2 text-neutral-400 hover:text-white mb-7"><ArrowLeft/>Voltar</button>
-    <div className="flex items-center gap-3 mb-8"><Target className="text-[#00AEFF] w-9 h-9"/><div><h1 className="text-3xl font-black">Minhas metas</h1><p className="text-neutral-400">Defina onde quer chegar e registre sua semana.</p></div></div>
-    <form onSubmit={salvar} className="space-y-6"><section className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6"><h2 className="font-black text-xl mb-5">Objetivos</h2><div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{camposMeta.map(([nome,label])=><label key={nome} className="text-sm text-neutral-300">{label}<input className={input} type="number" min="0" step={nome.includes('semana')?'1':'0.1'} value={meta[nome]??''} onChange={e=>setMeta({...meta,[nome]:e.target.value})}/></label>)}</div></section>
-    <section className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6"><h2 className="font-black text-xl mb-1">Progresso desta semana</h2><p className="text-sm text-neutral-400 mb-5">Atualize os números conforme cumprir suas metas.</p><div className="grid sm:grid-cols-3 gap-4">{[['agua_litros','Litros consumidos'],['treinos_concluidos','Treinos concluídos'],['refeicoes_corretas','Refeições corretas']].map(([nome,label])=><label key={nome} className="text-sm text-neutral-300">{label}<input className={input} type="number" min="0" step={nome==='agua_litros'?'0.1':'1'} value={progresso[nome]??0} onChange={e=>setProgresso({...progresso,[nome]:e.target.value})}/></label>)}</div></section>
-    {mensagem&&<p className="flex gap-2 text-emerald-400"><CheckCircle2/>{mensagem}</p>}<button className="w-full rounded-2xl bg-[#00AEFF] py-4 font-black flex justify-center gap-2"><Save/>Salvar metas</button></form></div>
+  const navigate=useNavigate(),{temaEscuro}=useTheme();const [dados,setDados]=useState(null),[form,setForm]=useState(null),[erro,setErro]=useState(''),[mensagem,setMensagem]=useState(''),[salvando,setSalvando]=useState(false),[historico,setHistorico]=useState(false),[atualizacao,setAtualizacao]=useState(0);
+  const carregar=useCallback(async(repor=false)=>{try{const d=await evolucao('/metas');setDados(d);if(repor)setForm({...d.meta,versao:d.meta?.versao||0,agua_litros:d.meta?.agua_litros??2,treinos_semana:d.meta?.treinos_semana??3,refeicoes_semana:d.meta?.refeicoes_semana??14,motivo:''});}catch(e){setErro(e.message);}},[]);
+  useEffect(()=>{carregar(true);},[carregar]);
+  const atualizar=()=>{setAtualizacao(n=>n+1);carregar();};
+  const salvar=async e=>{e.preventDefault();setSalvando(true);setErro('');setMensagem('');try{const m=await evolucao('/metas','PUT',form);setForm({...m,motivo:''});await carregar();setMensagem('Referências salvas. A revisão ficou registrada no histórico.');}catch(e){setErro(e.message);}finally{setSalvando(false);}};
+  const card=`border rounded-2xl p-5 ${temaEscuro?'bg-neutral-900 border-neutral-700':'bg-white border-gray-300'}`,campo=`block w-full mt-1 border rounded-lg p-3 ${temaEscuro?'bg-neutral-950 border-neutral-600':'bg-white border-gray-400'}`;
+  return <main className="px-5 lg:px-10 py-8 pb-28 space-y-7"><header><h1 className="text-2xl font-bold">Metas e evolução</h1><p className="text-sm mt-2">Planeje etapas e acompanhe seus registros sem preencher o progresso duas vezes.</p></header>{erro&&<MensagemTemporaria as="p" role="alert">{erro} <button className="acao-secundaria" onClick={()=>{setErro('');carregar(true);}}>Recarregar referências salvas</button></MensagemTemporaria>}{mensagem&&<MensagemTemporaria as="p" role="status">{mensagem}</MensagemTemporaria>}
+    {!dados&&!erro&&<p role="status">Carregando metas...</p>}{dados&&<section className="grid md:grid-cols-3 gap-4" aria-label="Progresso automático"><article className={card}><h2 className="font-bold">Treinos da semana</h2><p className="text-3xl font-bold my-3">{dados.progresso.treinos_concluidos} / {dados.meta?.treinos_semana??3}</p><ProgressoAluno label="Treinos" valor={dados.progresso.treinos_concluidos} total={dados.meta?.treinos_semana??3}/><p className="text-sm">Sessões concluídas, de segunda a domingo em Brasília.</p><button className="acao-secundaria text-sky-500 mt-3" onClick={()=>navigate('/aluno/treinos')}>Consultar treinos</button></article><article className={card}><h2 className="font-bold">Refeições da semana</h2><p className="text-3xl font-bold my-3">{dados.progresso.refeicoes_corretas} / {dados.meta?.refeicoes_semana??14}</p><ProgressoAluno label="Refeições" valor={dados.progresso.refeicoes_corretas} total={dados.meta?.refeicoes_semana??14}/><p className="text-sm">Registros realizados no diário. A contagem não avalia qualidade nutricional.</p><button className="acao-secundaria text-sky-500 mt-3" onClick={()=>navigate('/aluno/dietas')}>Registrar refeições</button></article><article className={card}><h2 className="font-bold">Água de hoje</h2><p className="text-3xl font-bold my-3">{numero(dados.progresso.agua_hoje_litros)} / {numero(dados.meta?.agua_litros??2)} L</p><ProgressoAluno label="Água" valor={dados.progresso.agua_hoje_litros} total={dados.meta?.agua_litros??2}/><p className="text-sm">Soma dos consumos registrados hoje, no horário de Brasília.</p></article></section>}
+    <HidratacaoAluno onAtualizar={atualizar}/>
+    <ObjetivosAluno atualizacao={atualizacao}/>
+    {form&&<details className={card}><summary className="cursor-pointer font-bold">Ajustar referências numéricas diárias e semanais</summary><p className="text-sm my-3">Estas referências se repetem a cada dia ou semana. Para acompanhar um objetivo com prazo, use “Nova meta com prazo”. Referências corporais antigas permanecem disponíveis, sem inventar prazos.</p><form onSubmit={salvar}><fieldset disabled={salvando} className="space-y-4"><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{Object.entries(nomesMetas).map(([k,n])=><label key={k}>{n}<input type="number" min={k.endsWith('_meta')?'0.01':'0'} max={k==='treinos_semana'?100:k==='refeicoes_semana'?200:k==='agua_litros'?20:k==='peso_meta'?500:k==='braco_meta'?150:k==='percentual_gordura_meta'?100:300} step={k.endsWith('semana')?'1':'0.01'} className={campo} value={form[k]??''} onChange={e=>setForm({...form,[k]:e.target.value})}/></label>)}</div><label className="block">Motivo da revisão (opcional)<textarea maxLength={1000} className={campo} value={form.motivo} onChange={e=>setForm({...form,motivo:e.target.value})}/></label><div className="flex flex-wrap gap-4"><button className="bg-sky-600 text-white rounded-lg p-3">{salvando?'Salvando...':'Salvar referências'}</button><button type="button" className="acao-secundaria" onClick={()=>setHistorico(true)}>Histórico das referências</button></div></fieldset></form></details>}
+    <GraficosEvolucao compacto atualizacao={atualizacao}/>
+    <button className="acao-secundaria text-sky-500" onClick={()=>navigate('/aluno/medidas')}>Comparar medidas e fotos</button>
+    <ComentariosEvolucao/>
+    {historico&&<RevisoesMetas onClose={()=>setHistorico(false)}/>}
   </main>;
 }

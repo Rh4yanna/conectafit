@@ -1,0 +1,37 @@
+/* eslint-disable react/prop-types */
+import {useEffect,useState} from 'react';
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+import {Caixa,Formulario,hoje,dia,botao,secundario,motivo} from './operacao-comum';
+const dataLocal=v=>new Date(v).toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+const horario=v=>new Date(v).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'});
+const somarDias=(d,n)=>new Date(Date.parse(d+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
+const ocorreNoDia=(r,d)=>Date.parse(r.inicio)<Date.parse(somarDias(d,1)+'T03:00:00.000Z')&&Date.parse(r.fim)>Date.parse(d+'T03:00:00.000Z');
+const entrada=v=>`${dataLocal(v)}T${horario(v)}`;
+export default function AgendaAcademia({api,matriculas,operador}){
+ const [responsaveis,setResponsaveis]=useState([]),[visao,setVisao]=useState('mes'),[data,setData]=useState(hoje()),[itens,setItens]=useState([]),[erro,setErro]=useState(''),[carregando,setCarregando]=useState(true),[revisao,setRevisao]=useState(0),[editar,setEditar]=useState(null),[mensagem,setMensagem]=useState('');
+ useEffect(()=>{let ativo=true;api('/agenda/responsaveis').then(d=>{if(ativo)setResponsaveis(d);}).catch(e=>{if(ativo)setErro(e.message);});return()=>{ativo=false;};},[api]);
+ const mes=data.slice(0,7),inicioPeriodo=visao==='mes'?mes+'-01':visao==='semana'?somarDias(data,-new Date(data+'T12:00:00Z').getUTCDay()):data;
+ const fimPeriodo=visao==='mes'?new Date(Date.UTC(Number(mes.slice(0,4)),Number(mes.slice(5)),0)).toISOString().slice(0,10):visao==='semana'?somarDias(inicioPeriodo,6):data;
+ useEffect(()=>{let ativo=true;setCarregando(true);setErro('');api(`/agenda/periodo?inicio=${inicioPeriodo}&fim=${fimPeriodo}`).then(d=>{if(ativo)setItens(d);}).catch(e=>{if(ativo){setErro(e.message);setItens([]);}}).finally(()=>{if(ativo)setCarregando(false);});return()=>{ativo=false;};},[api,inicioPeriodo,fimPeriodo,revisao]);
+ const primeiro=new Date(`${mes}-01T12:00:00`),total=new Date(primeiro.getFullYear(),primeiro.getMonth()+1,0).getDate();
+ const registros=itens;
+ const navegar=n=>{if(visao!=='mes'){setData(somarDias(data,n*(visao==='semana'?7:1)));}else{const d=new Date(primeiro);d.setMonth(d.getMonth()+n);setData(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`);}setEditar(null);};
+ const salvar=async b=>{setMensagem('');const r=await api('/agenda','POST',{...b,inicio:new Date(b.inicio+':00-03:00').toISOString(),fim:new Date(b.fim+':00-03:00').toISOString()});setData(dataLocal(r.inicio));setMensagem('Compromisso salvo.');setEditar(r);setRevisao(v=>v+1);};
+ return <Caixa titulo="Agenda da academia">
+  <p className="text-sm">Horários de Brasília. Turmas e reservas continuam disponíveis na área própria.</p>
+  {mensagem&&<MensagemTemporaria role="status">{mensagem}</MensagemTemporaria>}
+  {erro&&<MensagemTemporaria role="alert">{erro}</MensagemTemporaria>}
+  {carregando&&<p role="status">Carregando agenda...</p>}
+  <div className="flex flex-wrap gap-2" aria-label="Visualização da agenda">{[['mes','Mês'],['semana','Semana'],['dia','Dia']].map(([v,l])=><button key={v} className={visao===v?botao:secundario} aria-pressed={visao===v} onClick={()=>setVisao(v)}>{l}</button>)}<button className={secundario} onClick={()=>{setData(hoje());setEditar(null);}}>Hoje</button></div>
+  <div className="grid lg:grid-cols-[3fr_2fr] gap-5">
+   <section className="min-w-0" aria-label="Calendário da academia">
+    <header className="flex items-center justify-between gap-2 mb-4"><button className={secundario} aria-label="Período anterior" onClick={()=>navegar(-1)}>‹</button><h3 className="font-bold capitalize">{visao==='mes'?primeiro.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}):visao==='semana'?`${dia(inicioPeriodo)} a ${dia(fimPeriodo)}`:dia(data)}</h3><button className={secundario} aria-label="Próximo período" onClick={()=>navegar(1)}>›</button></header>
+    {visao==='mes'?<div className="grid grid-cols-7 gap-1">{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=><span className="text-center text-xs" key={d}>{d}</span>)}{Array.from({length:primeiro.getDay()},(_,i)=><span key={`v${i}`}/>)}{Array.from({length:total},(_,i)=>{const d=`${mes}-${String(i+1).padStart(2,'0')}`,q=registros.filter(r=>ocorreNoDia(r,d)&&!r.cancelado).length;return <button key={d} aria-label={`${dia(d)}, ${q} agendamentos`} aria-pressed={data===d} onClick={()=>{setData(d);setEditar(null);}} className={`min-h-16 rounded-lg border p-1 ${data===d?'border-sky-400 bg-sky-500/20':'border-neutral-500/30'}`}>{i+1}{q>0&&<span className="block text-xs text-sky-300">{q} evento(s)</span>}</button>;})}</div>:<div className="space-y-3">{Array.from({length:visao==='semana'?7:1},(_,i)=>{const d=somarDias(inicioPeriodo,i),eventos=registros.filter(r=>ocorreNoDia(r,d));return <section key={d} className={`rounded-xl border p-3 ${d===data?'border-sky-400':'border-neutral-500/30'}`}><button className="font-bold text-sky-300" onClick={()=>{setData(d);setEditar(null);}}>{dia(d)}</button>{eventos.length===0?<p className="text-sm">Sem agendamentos.</p>:eventos.map(r=><p key={r.chave} className={`text-sm break-words mt-2 ${r.cancelado?'opacity-60':''}`}>{horario(r.inicio)}?{horario(r.fim)} ? {r.titulo}{r.cancelado?' ? Cancelado':''}</p>)}</section>;})}</div>}
+   </section>
+   {operador&&<section className="min-w-0 space-y-3"><h3 className="font-bold">{editar?'Editar compromisso':'Novo compromisso'}</h3>{editar&&<button className={secundario} onClick={()=>setEditar(null)}>Novo compromisso</button>}<Formulario key={`${data}-${editar?.id||'novo'}-${editar?.versao||0}`} titulo="Compromisso da academia" inicial={editar?{...editar,inicio:entrada(editar.inicio),fim:entrada(editar.fim)}:{tipo:'compromisso',inicio:data+'T09:00',fim:data+'T10:00'}} campos={[{k:'titulo',label:'Título'},{k:'tipo',label:'Tipo',opcoes:[{valor:'compromisso',label:'Compromisso'},{valor:'avaliacao',label:'Avaliação'}]},{k:'responsavel_id',label:'Responsável da equipe',opcional:true,opcoes:responsaveis.map(u=>({valor:u.id,label:u.nome}))},{k:'responsavel',label:'Responsável externo (se não selecionou a equipe)',opcional:true},{k:'matricula_id',label:'Aluno',opcional:true,opcoes:matriculas.map(m=>({valor:m.id,label:m.aluno_nome}))},{k:'inicio',label:'Início',tipo:'datetime-local'},{k:'fim',label:'Término',tipo:'datetime-local'},{k:'observacao',label:'Observações',tipo:'textarea',opcional:true}]} enviar={salvar} label="Salvar compromisso"/></section>}
+  </div>
+  <h3 className="font-bold">Agendamentos de {dia(data)}</h3>
+  {!carregando&&!registros.some(r=>ocorreNoDia(r,data))&&<p>Nenhum agendamento neste dia.</p>}
+  {registros.filter(r=>ocorreNoDia(r,data)).map(r=><article key={r.chave} className={`rounded-xl border border-neutral-500/30 p-4 space-y-2 ${r.cancelado?'opacity-60':''}`}><h4 className="font-bold">{r.titulo} {r.cancelado?'· Cancelado':r.turma?'· Turma':''}</h4><p>{horario(r.inicio)}–{horario(r.fim)} · {r.responsavel}</p>{r.aluno_nome&&<p>Aluno: {r.aluno_nome}</p>}{r.observacao&&<p className="whitespace-pre-wrap break-words">{r.observacao}</p>}{operador&&!r.turma&&!r.cancelado&&<><button className={botao} onClick={()=>setEditar(r)}>Editar</button><details><summary className="cursor-pointer">Cancelar compromisso</summary><Formulario titulo={`Cancelar ${r.titulo}`} campos={[motivo]} label="Confirmar cancelamento" enviar={async b=>{await api(`/agenda/${r.id}`,'DELETE',{...b,versao:r.versao});setEditar(null);setRevisao(v=>v+1);}}/></details></>}</article>)}
+ </Caixa>;
+}

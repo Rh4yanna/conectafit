@@ -1,0 +1,95 @@
+import { chromium, expect } from '@playwright/test';
+import assert from 'node:assert/strict';
+import {servidorIsolado} from './teste-servidor-isolado.mjs';
+
+// Rotas reais, banco com estrutura copiada e sem registros de usuários reais.
+const app=await servidorIsolado();const {schema,db,base}=app;let browser;
+try {
+  await db.query(`INSERT INTO ${schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES(1,'Aluna Teste','treinos@example.invalid','teste','aluno')`);
+  const token=await app.token(1);
+  const api=async(path,method='GET',body)=>{
+    const r=await fetch(`${base}/api${path}`,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+    return {status:r.status,data:await r.json()};
+  };
+  browser=await chromium.launch({headless:true});
+  const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(15000);
+  const erros=[];page.on('pageerror',e=>erros.push(e.message));page.on('dialog',d=>d.accept());
+  await page.addInitScript(t=>{localStorage.setItem('token',t);localStorage.setItem('usuario',JSON.stringify({id:1,nome:'Aluna Teste',tipo_usuario:'aluno'}));},token);
+  await page.route('**/api/**',async route=>{
+    const req=route.request(),u=new URL(req.url());
+    const r=await fetch(base+u.pathname+u.search,{method:req.method(),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(req.postData()?{body:req.postData()}:{})});
+    await route.fulfill({status:r.status,contentType:'application/json',body:await r.text()});
+  });
+  // A indisponibilidade da mídia externa não pode interromper o treino.
+  await page.route('https://wger.de/media/**',r=>r.abort());
+  const frontend=new URL(process.env.TREINOS_UI_URL||'http://127.0.0.1:5187');
+  await page.goto(`${frontend.origin}/aluno/treinos`);
+  await page.getByRole('button',{name:'Adicionar treino'}).click();
+  await page.getByPlaceholder('Ex: Treino C - Pernas e Ombro').fill('Ficha integrada');
+  for(const dia of ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'])await page.getByLabel(dia,{exact:true}).check();
+  await page.getByRole('button',{name:'Adicionar da biblioteca de exercícios'}).click();
+  await page.getByLabel('Somente em português').check();
+  await page.getByLabel('Buscar exercício').fill('Supino com halteres');
+  await page.getByRole('button',{name:'Selecionar Supino com halteres',exact:true}).click();
+  await expect(page.getByLabel('Nome do exercício 1',{exact:true})).toHaveValue('Supino com halteres');
+  await page.getByLabel('Quantidade de séries do exercício 1',{exact:true}).fill('1');
+  await page.getByRole('button',{name:'Ver vídeo de execução'}).click();
+  await page.getByRole('button',{name:'Carregar vídeo'}).click();
+  await expect(page.getByRole('alert')).toContainText('Vídeo indisponível');
+  await page.getByRole('button',{name:'Salvar Treino',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Ficha integrada',exact:true}).first()).toBeVisible();
+  const lista=await api('/treinos');assert.equal(lista.status,200);const ficha=lista.data[0];
+  assert.equal(ficha.exercicios[0].catalogo_id,'wger:75');assert.equal(ficha.dias_semana.length,7);
+  const editada=await api(`/treinos/${ficha.id}`,'PUT',{...ficha,titulo:'Ficha integrada'});
+  assert.equal(editada.status,200);assert.equal(editada.data.treino.exercicios[0].id_exercicio,ficha.exercicios[0].id_exercicio);
+  const hoje = Number((await db.query("SELECT EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') AS dia")).rows[0].dia);
+  await api(`/treinos/${ficha.id}`,'PUT',{...ficha,dias_semana:[(hoje+1)%7]});
+  await page.goto(`${frontend.origin}/aluno/dashboard`);
+  await expect(page.getByText('Nenhuma ficha programada para hoje.',{exact:true})).toBeVisible();
+  await api(`/treinos/${ficha.id}`,'PUT',{...ficha,dias_semana:[hoje]});
+  await page.goto(`${frontend.origin}/aluno/dashboard`);
+  await expect(page.getByText('Programado para hoje',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Abrir ficha',exact:true}).click();
+  await expect(page.getByRole('list',{name:'Exercícios do treino'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Iniciar sessão',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Salvar e pausar'}).click();
+  await expect(page.getByText('Pausada',{exact:true})).toBeVisible();
+  await page.goto(`${frontend.origin}/aluno/dashboard`);
+  await expect(page.getByText('Você tem uma sessão pausada')).toBeVisible();
+  await page.getByRole('button',{name:'Continuar sessão'}).click();await page.getByRole('button',{name:'Retomar sessão'}).click();
+  await page.setViewportSize({width:390,height:844});
+  await page.getByLabel('Supino com halteres, peso utilizado',{exact:true}).fill('10');
+  await page.getByLabel('Supino com halteres, exercício concluído',{exact:true}).check();
+  await expect(page.getByLabel('Como foi o treino?',{exact:true})).toHaveCount(0);
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.getByRole('button',{name:'Finalizar treino',exact:true}).click();
+  const confirmar=page.getByRole('button',{name:'Confirmar finalização'});
+  await expect(confirmar).toBeDisabled();
+  await page.getByLabel('Como foi o treino?',{exact:true}).fill('   ');
+  await expect(confirmar).toBeDisabled();
+  assert.equal((await api('/sessoes-treino')).data.ativa.status,'em_andamento');
+  await page.getByLabel('Como foi o treino?',{exact:true}).fill('Treino bom, sem dificuldades.');
+  await confirmar.click();
+  await expect(page.getByText('Sessão encerrada e registrada no histórico.')).toBeVisible();
+  const historico=(await api('/sessoes-treino')).data.historico[0];
+  assert.equal(historico.observacoes,'Treino bom, sem dificuldades.');
+  assert.equal(historico.exercicios[0].series[0].carga,10);
+  assert.equal(historico.exercicios[0].series[0].concluida,true);
+  assert.equal(historico.exercicios[0].series[0].repeticoes,null);
+  await expect(page.getByRole('table')).toContainText('Não calculado');
+  const adulterado=await api('/aluno/progresso','PUT',{treinos_concluidos:999,agua_litros:0,refeicoes_corretas:0});
+  assert.equal(adulterado.status,200);assert.equal(adulterado.data.treinos_concluidos,1);
+  assert.equal((await api('/aluno/metas','PUT',{treinos_semana:0,versao:0})).data.treinos_semana,0);
+  assert.equal((await api('/aluno/metas','PUT',{treinos_semana:-1,versao:1})).status,400);
+  await api('/aluno/metas','PUT',{treinos_semana:1,versao:1});
+  await page.goto(`${frontend.origin}/aluno/metas`);
+  await expect(page.getByText('1 / 1',{exact:true})).toBeVisible();
+  await page.goto(`${frontend.origin}/aluno/dashboard`);
+  await expect(page.getByText('Concluído hoje',{exact:true})).toBeVisible();await expect(page.getByText('1 / 1',{exact:true})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  assert.deepEqual(erros,[],app.logs());
+  console.log('OK: biblioteca, vínculo persistente, tratamento de vídeo indisponível, programação, painel, retomada, evolução e metas automáticas nas rotas reais.');
+}finally{
+  await browser?.close();
+  await app.fechar();
+}

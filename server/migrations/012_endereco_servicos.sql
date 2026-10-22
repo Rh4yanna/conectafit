@@ -1,0 +1,14 @@
+BEGIN;
+ALTER TABLE localizacoes_servicos ALTER COLUMN latitude DROP NOT NULL;
+ALTER TABLE localizacoes_servicos ALTER COLUMN longitude DROP NOT NULL;
+ALTER TABLE localizacoes_servicos ADD COLUMN IF NOT EXISTS cidade VARCHAR(120);
+ALTER TABLE localizacoes_servicos ADD COLUMN IF NOT EXISTS rua VARCHAR(180);
+ALTER TABLE localizacoes_servicos ADD COLUMN IF NOT EXISTS numero VARCHAR(20);
+ALTER TABLE localizacoes_servicos ADD COLUMN IF NOT EXISTS estado VARCHAR(2);
+CREATE TABLE IF NOT EXISTS cache_enderecos (
+  chave TEXT PRIMARY KEY,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+COMMIT;

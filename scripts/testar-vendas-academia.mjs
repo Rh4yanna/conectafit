@@ -1,0 +1,29 @@
+import crypto from 'node:crypto';
+import {navegarAcademia,fecharModais} from './navegacao-academia-ui.mjs';
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {servidorIsolado} from './teste-servidor-isolado.mjs';
+import {hojeEvolucao} from '../server/evolucao.js';
+const app=await servidorIsolado();let browser;
+try{
+ const users={academia:{id:1,nome:'Unidade Teste'},aluno:{id:2,nome:'Aluno Convidado'},personal:{id:3,nome:'Professor Equipe'}};
+ for(const[tipo,u]of Object.entries(users))await app.db.query(`INSERT INTO ${app.schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,$2,$3,'teste',$4)`,[u.id,u.nome,`${tipo}@example.invalid`,tipo]);
+ const tokens=Object.fromEntries(await Promise.all(Object.entries(users).map(async ([tipo,u])=>[tipo,await app.token(u.id)])));
+ const frontend='http://127.0.0.1:5187',erros=[];browser=await chromium.launch({headless:true});
+ async function pagina(tipo){const p=await browser.newPage({viewport:{width:1360,height:960}});p.setDefaultTimeout(15000);p.on('pageerror',e=>erros.push(e.message));await p.addInitScript(({token,usuario,tipo})=>{localStorage.setItem('token',token);localStorage.setItem('usuario',JSON.stringify({...usuario,tipo_usuario:tipo}));},{token:tokens[tipo],usuario:users[tipo],tipo});await p.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url()),r=await fetch(app.base+u.pathname+u.search,{method:req.method(),headers:{Authorization:`Bearer ${tokens[tipo]}`,'Content-Type':'application/json'},...(req.postData()?{body:req.postData()}:{})});await route.fulfill({status:r.status,contentType:r.headers.get('content-type')||'application/json',body:Buffer.from(await r.arrayBuffer())});});return p;}
+
+ async function seed(path,body){const r=await fetch(app.base+'/api/operacao-academia'+path+'?unidade=1',{method:'POST',headers:{Authorization:`Bearer ${tokens.academia}`,'Content-Type':'application/json'},body:JSON.stringify(body)});assert.ok(r.ok);return r.json();}
+ const produto=await seed('/estoque/produtos',{nome:'Produto UI',categoria:'Geral',custo:1,preco:10,minimo:0,ativo:true});await seed('/estoque/movimentos',{produto_id:produto.id,tipo:'entrada',quantidade:5,motivo:'Inicial',chave_cliente:crypto.randomUUID()});
+ const p=await pagina('academia');await p.goto(frontend+'/academia/dashboard');await expect(p.getByRole('heading',{name:'Visão Geral'})).toBeVisible();const aba=navegarAcademia(p);await aba('Estoque');
+ await p.getByRole('button',{name:'Nova venda',exact:true}).click();await p.getByLabel('Adicionar produto',{exact:true}).selectOption(String(produto.id));await p.getByLabel('Quantidade de Produto UI',{exact:true}).fill('2');
+ let f=p.getByRole('form',{name:'Confirmar carrinho'});await f.getByLabel('Cliente',{exact:true}).fill('Cliente UI');await f.getByLabel('Quantidade de parcelas',{exact:true}).fill('2');await f.getByRole('button',{name:'Confirmar venda'}).click();await expect(p.getByText('Operação registrada com sucesso.',{exact:true})).toBeVisible();await fecharModais(p);
+ await p.locator('summary').filter({hasText:'Cliente UI'}).click();await p.getByRole('button',{name:'Receber parcela 1',exact:true}).click();await p.getByRole('button',{name:'Confirmar recebimento',exact:true}).click();await expect(p.getByText(/Parcela 1 .*Recebido R\$/)).toContainText('10,00');
+ await fecharModais(p);await p.getByRole('button',{name:'Devolver Produto UI',exact:true}).click();await p.getByLabel('Motivo da devolução',{exact:true}).fill('Devolucao teste');await p.getByRole('button',{name:'Confirmar devolução e reembolso',exact:true}).click();await fecharModais(p);await expect(p.getByText(/1 devolvidas/)).toBeVisible();
+ await p.reload();await p.locator('summary').filter({hasText:'Cliente UI'}).click();await expect(p.getByText(/1 devolvidas/)).toBeVisible();await p.setViewportSize({width:390,height:844});await expect.poll(()=>p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+
+ await p.setViewportSize({width:1360,height:960});await aba('Contas a pagar');await p.locator('summary').filter({hasText:'Cadastrar conta'}).click();f=p.getByRole('form',{name:'Nova conta a pagar'});await f.getByLabel('Descrição',{exact:true}).fill('Recorrente UI');await f.getByLabel('Fornecedor ou beneficiário').fill('Fornecedor');await f.getByLabel('Valor da conta (R$)').fill('50');await f.getByLabel('Vencimento',{exact:true}).fill('2027-01-31');await f.getByLabel('Ocorrências mensais (1 = avulsa)',{exact:true}).fill('3');await f.getByRole('button',{name:'Cadastrar conta'}).click();await expect(p.getByText('Conta cadastrada.',{exact:true})).toBeVisible();await p.getByLabel('Vencimentos desde').fill('2027-01-01');await p.getByLabel('Vencimentos até').fill('2027-03-31');await expect(p.locator('summary').filter({hasText:'Recorrente UI'})).toHaveCount(3);
+ const m=await seed('/matriculas',{nome:'Avaliado UI',email:'avaliado@teste.invalid'});await seed('/avaliacoes',{matricula_id:m.id,data:hojeEvolucao(),responsavel:'Avaliador',medidas:{peso:80},chave_cliente:crypto.randomUUID()});
+ await p.reload();await aba('Avaliações');await p.getByLabel('Aluno avaliado').selectOption(String(m.id));await p.locator('summary').filter({hasText:'Avaliador'}).click();await p.getByRole('button',{name:'Corrigir avaliação',exact:true}).click();f=p.getByRole('form',{name:/Corrigir avalia/});await f.getByLabel('Peso (kg)',{exact:true}).fill('79');await f.getByLabel('Motivo da correção').fill('Corrigir valor');await f.getByRole('button',{name:'Salvar correção'}).click();await expect(p.getByText('Correção salva; versão anterior preservada.',{exact:true})).toBeVisible();await expect(p.locator('summary').filter({hasText:'Versão anterior'})).toBeVisible();
+ assert.deepEqual(erros,[]);console.log('OK: carrinho, parcelas, recebimento, devolucao e persistencia mobile.');
+}finally{await browser?.close();await app.fechar();}

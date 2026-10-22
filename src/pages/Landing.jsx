@@ -1,125 +1,96 @@
-import React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Smartphone, LogIn, Dumbbell, ShieldCheck, Zap, Apple, Search } from 'lucide-react';
+import { Smartphone, ArrowUpRight, Dumbbell, ShieldCheck, TrendingUp, Apple, Search, Users, Building2, Check } from 'lucide-react';
 import logoEscura from '../assets/fescuro.png';
+import './Landing.css';
+
+const recursos = [
+  { icon: Search, titulo: 'Encontre sua conexão', texto: 'Consulte perfis de profissionais e academias e encontre opções na sua cidade.' },
+  { icon: Dumbbell, titulo: 'Treinos organizados', texto: 'Consulte sua ficha, registre as cargas utilizadas e acompanhe as sessões concluídas.' },
+  { icon: Apple, titulo: 'Alimentação na rotina', texto: 'Acesse refeições, horários e orientações do seu plano alimentar em um só lugar.' },
+  { icon: TrendingUp, titulo: 'Evolução com histórico', texto: 'Acompanhe metas, medidas e fotos para consultar seu progresso ao longo do tempo.' },
+  { icon: ShieldCheck, titulo: 'Você controla o acesso', texto: 'Escolha quais medidas e fotos compartilhar com os profissionais conectados.' },
+];
+const perfis = [
+  { icon: Users, titulo: 'Alunos', chamada: 'Sua rotina, mais organizada.', itens: ['Treinos e alimentação no mesmo lugar', 'Metas e registros de evolução', 'Organização pessoal, com ou sem profissional'] },
+  { icon: Dumbbell, titulo: 'Personal trainers', chamada: 'Mais contexto para acompanhar.', itens: ['Fichas e programação de treinos', 'Histórico de sessões e cargas', 'Avaliações, retornos e agenda'] },
+  { icon: Apple, titulo: 'Nutricionistas', chamada: 'Do plano ao acompanhamento.', itens: ['Anamnese e planos alimentares', 'Refeições e substituições autorizadas', 'Diário alimentar e consultas'] },
+  { icon: Building2, titulo: 'Academias', chamada: 'Gestão conectada à sua operação.', itens: ['Alunos, matrículas e planos comerciais', 'Mensalidades e registros financeiros', 'Presença e acompanhamento de frequência'] },
+];
 
 export default function Landing() {
+  const [avisoApp, setAvisoApp] = useState(false);
+  const pagina = useRef(null);
+
+  useEffect(() => {
+    const preferencia = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (!('IntersectionObserver' in window) || preferencia.matches) return;
+    // Content stays visible before observation and if animations are unavailable.
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        if (!preferencia.matches) entry.target.classList.add('landing-entered');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.08 });
+    pagina.current.querySelectorAll('[data-reveal]').forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans antialiased overflow-x-hidden">
-      
-      {/* BARRA DE NAVEGAÇÃO RESPONSIVA */}
-      <header className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <img 
-            src={logoEscura} 
-            alt="Logo ConectaFit" 
-            className="h-10 sm:h-14 w-auto object-contain flex-shrink-0 select-none" 
-          />
-          <span className="text-xl sm:text-3xl font-black tracking-tight truncate">
-            Conecta<span className="text-[#00AEFF]">FIT</span>
-          </span>
-        </div>
-
-        <Link
-          to="/login"
-          className="flex-shrink-0 flex items-center justify-center gap-1.5 px-3.5 py-2.5 sm:px-6 sm:py-3.5 bg-[#00AEFF] hover:bg-[#1ebbf0] text-white font-extrabold text-xs sm:text-base rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap"
-        >
-          <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Fazer Login</span>
-        </Link>
+    <div className="landing" ref={pagina}>
+      <header className="landing-header landing-container">
+        <a className="landing-brand" href="#inicio" aria-label="ConectaFit — início">
+          <img src={logoEscura} alt="" width="54" height="54" />
+          <span>Conecta<span>FIT</span></span>
+        </a>
+        <nav className="landing-nav" aria-label="Navegação principal">
+          <a href="#recursos">Recursos</a>
+          <a href="#perfis">Para quem</a>
+          <Link to="/login" className="landing-button landing-button-small">Entrar <ArrowUpRight aria-hidden="true" size={17} /></Link>
+        </nav>
       </header>
-
-      {/* SEÇÃO PRINCIPAL */}
-      <main className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 max-w-7xl mx-auto py-8 sm:py-12">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-neutral-700 rounded-full text-xs sm:text-sm text-[#00AEFF] font-bold mb-6 sm:mb-8">
-          <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Sua plataforma fitness completa</span>
-        </div>
-
-        <h1 className="text-3xl sm:text-6xl font-black tracking-tight leading-tight mb-6 sm:mb-8 max-w-5xl">
-          Conecte seu treino ao seu <span className="text-[#00AEFF]">resultado</span>.
-        </h1>
-
-        <p className="text-neutral-200 text-base sm:text-xl font-medium max-w-3xl mb-8 sm:mb-12 leading-relaxed">
-          O ConectaFit une alunos, personal trainers, nutricionistas e academias em um só lugar. Acompanhe fichas de treino, planos alimentares e sua evolução física em tempo real.
-        </p>
-
-        {/* BOTÕES DE AÇÃO */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <Link
-            to="/login"
-            className="w-full sm:w-auto px-8 py-4 sm:py-5 bg-[#00AEFF] hover:bg-[#1ebbf0] text-white font-black text-base sm:text-lg rounded-2xl transition-all shadow-lg shadow-[#00AEFF]/30 flex items-center justify-center gap-3 uppercase tracking-wider active:scale-95"
-          >
-            Acesse a versão web
-          </Link>
-
-          <button
-            onClick={() => alert('Aplicativo móvel em breve na Play Store e App Store!')}
-            className="w-full sm:w-auto px-8 py-4 sm:py-5 bg-neutral-900 hover:bg-neutral-800 text-white font-black text-base sm:text-lg rounded-2xl border-2 border-neutral-700 transition-all flex items-center justify-center gap-3 active:scale-95"
-          >
-            <Smartphone className="w-5 h-5 sm:w-6 sm:h-6 text-[#00AEFF]" />
-            <span>Baixar o Aplicativo</span>
-          </button>
-        </div>
-
-        {/* RECURSOS EM DESTAQUE (5 CARDS) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mt-12 sm:mt-16 text-left w-full">
-          <div className="p-5 sm:p-6 bg-neutral-900 border-2 border-neutral-800 rounded-2xl flex flex-col justify-between">
-            <div>
-              <Search className="w-8 h-8 sm:w-10 sm:h-10 text-[#00AEFF] mb-3 sm:mb-4" />
-              <h3 className="font-extrabold text-lg sm:text-xl mb-2 text-white">Encontre Parceiros</h3>
-              <p className="text-xs sm:text-sm font-medium text-neutral-300 leading-relaxed">
-                Localize e conecte-se aos melhores personais, nutricionistas e academias perto de você.
-              </p>
+      <main id="conteudo-principal" tabIndex={-1}>
+        <section id="inicio" className="landing-hero landing-container" aria-labelledby="landing-title">
+          <div className="landing-hero-copy" data-reveal>
+            <p className="landing-eyebrow"><span /> Treino, alimentação e conexões</p>
+            <h1 id="landing-title">Conecte seu treino ao seu <em>resultado.</em></h1>
+            <p className="landing-lead">Sua rotina merece estar conectada. Reúna treinos, alimentação e evolução com os profissionais que acompanham você.</p>
+            <div className="landing-actions">
+              <Link to="/login" className="landing-button">Acesse a versão web <ArrowUpRight size={19} aria-hidden="true" /></Link>
+              <button type="button" className="landing-button landing-button-secondary" onClick={() => setAvisoApp(true)} aria-describedby="landing-app-status"><Smartphone size={19} aria-hidden="true" /> Baixar app</button>
             </div>
+            <div id="landing-app-status" role="status" className="landing-app-status">{avisoApp ? 'Em breve na App Store e no Google Play' : ''}</div>
+            <p className="landing-web-note">A plataforma já pode ser acessada pelo navegador.</p>
           </div>
-
-          <div className="p-5 sm:p-6 bg-neutral-900 border-2 border-neutral-800 rounded-2xl flex flex-col justify-between">
-            <div>
-              <Dumbbell className="w-8 h-8 sm:w-10 sm:h-10 text-[#00AEFF] mb-3 sm:mb-4" />
-              <h3 className="font-extrabold text-lg sm:text-xl mb-2 text-white">Treinos Personalizados</h3>
-              <p className="text-xs sm:text-sm font-medium text-neutral-300 leading-relaxed">
-                Fichas personalizadas pelo seu treinador com orientações completas.
-              </p>
-            </div>
+          <div className="landing-hero-art" aria-hidden="true">
+            <img src={logoEscura} alt="" width="2000" height="2000" fetchPriority="high" />
+            <div className="landing-art-label landing-art-label-top"><Dumbbell size={20} /> Seu treino</div>
+            <div className="landing-art-label landing-art-label-bottom"><Apple size={20} /> Sua alimentação</div>
+            <p>Uma rotina. Mais conexões.</p>
           </div>
-
-          <div className="p-5 sm:p-6 bg-neutral-900 border-2 border-neutral-800 rounded-2xl flex flex-col justify-between">
-            <div>
-              <Apple className="w-8 h-8 sm:w-10 sm:h-10 text-[#00AEFF] mb-3 sm:mb-4" />
-              <h3 className="font-extrabold text-xl mb-2 text-white">Nutrição Integrada</h3>
-              <p className="text-xs sm:text-sm font-medium text-neutral-300 leading-relaxed">
-                Acompanhamento de dietas e metas alimentares ajustadas pelo seu nutricionista.
-              </p>
-            </div>
+        </section>
+        <section id="recursos" className="landing-section landing-container" aria-labelledby="recursos-title" data-reveal>
+          <div className="landing-section-heading">
+            <div><p className="landing-eyebrow">Tudo mais próximo</p><h2 id="recursos-title">Menos informação espalhada.<br />Mais clareza para sua rotina.</h2></div>
+            <p>Consulte o que foi planejado, registre o que foi realizado e mantenha seu histórico organizado.</p>
           </div>
-
-          <div className="p-5 sm:p-6 bg-neutral-900 border-2 border-neutral-800 rounded-2xl flex flex-col justify-between">
-            <div>
-              <Zap className="w-8 h-8 sm:w-10 sm:h-10 text-[#00AEFF] mb-3 sm:mb-4" />
-              <h3 className="font-extrabold text-lg sm:text-xl mb-2 text-white">Evolução em Tempo Real</h3>
-              <p className="text-xs sm:text-sm font-medium text-neutral-300 leading-relaxed">
-                Acompanhe cargas, frequência de treino e seu progresso físico diário.
-              </p>
-            </div>
+          <div className="landing-resources">
+            {recursos.map(({ icon: Icon, titulo, texto }) => <article className="landing-card" key={titulo}><span className="landing-icon"><Icon size={23} aria-hidden="true" /></span><h3>{titulo}</h3><p>{texto}</p></article>)}
           </div>
-
-          <div className="p-5 sm:p-6 bg-neutral-900 border-2 border-neutral-800 rounded-2xl flex flex-col justify-between">
-            <div>
-              <ShieldCheck className="w-8 h-8 sm:w-10 sm:h-10 text-[#00AEFF] mb-3 sm:mb-4" />
-              <h3 className="font-extrabold text-xl mb-2 text-white">Gestão Segura</h3>
-              <p className="text-xs sm:text-sm font-medium text-neutral-300 leading-relaxed">
-                Seus dados e históricos protegidos na nuvem com total segurança.
-              </p>
-            </div>
+        </section>
+        <section id="perfis" className="landing-section landing-profiles-section" aria-labelledby="perfis-title">
+          <div className="landing-container" data-reveal>
+            <div className="landing-section-heading"><div><p className="landing-eyebrow">Cada perfil, seu espaço</p><h2 id="perfis-title">Uma plataforma.<br />Diferentes formas de cuidar.</h2></div><p>Recursos próprios para quem treina, orienta e gerencia, com informações organizadas para cada papel.</p></div>
+            <div className="landing-profiles">{perfis.map(({ icon: Icon, titulo, chamada, itens }) => <article className="landing-profile" key={titulo}><Icon size={26} aria-hidden="true" /><h3>{titulo}</h3><p>{chamada}</p><ul>{itens.map(item => <li key={item}><Check size={16} aria-hidden="true" /><span>{item}</span></li>)}</ul></article>)}</div>
           </div>
-        </div>
+        </section>
+        <section className="landing-container landing-closing" aria-labelledby="closing-title" data-reveal>
+          <div><p className="landing-eyebrow">Seu próximo passo</p><h2 id="closing-title">Conecte o cuidado à sua rotina.</h2><p>Acesse seu espaço e continue de onde parou.</p></div>
+          <Link to="/login" className="landing-button">Acessar ConectaFit <ArrowUpRight size={19} aria-hidden="true" /></Link>
+        </section>
       </main>
-
-      {/* RODAPÉ */}
-      <footer className="w-full text-center py-6 text-xs sm:text-sm font-semibold text-neutral-400 border-t border-neutral-900">
-          ConectaFit desenvolvido por Rhayanna Borges Tonete.
-      </footer>
+      <footer className="landing-footer landing-container"><span className="landing-footer-brand">Conecta<span>FIT</span></span><p>ConectaFit desenvolvido por Rhayanna Borges Tonete.</p></footer>
     </div>
   );
 }

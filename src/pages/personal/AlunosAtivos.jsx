@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+/* eslint-disable react/prop-types */
+import { useState, useEffect } from 'react';
 import { Search, Dumbbell, Mail, Phone, Calendar, AlertCircle, ChevronRight, UserX } from 'lucide-react';
 import { apiFetch } from '../../config/api';
 import DetalhesAluno from '../profissional/DetalhesAluno';
 
-export default function AlunosAtivos() {
+export default function AlunosAtivos({nutri=false}) {
   const [alunos, setAlunos] = useState([]);
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(null);
   const [alunoAberto,setAlunoAberto]=useState(null);
 
-  // Recupera o ID do personal logado
-  const usuarioLogado = JSON.parse(
-    localStorage.getItem('usuarioLogado') || localStorage.getItem('usuario') || '{}'
-  );
-
+  const [incluirInativos, setIncluirInativos] = useState(false);
+  const [alterando, setAlterando] = useState(null);
   useEffect(() => {
     carregarAlunos();
   }, []);
@@ -24,7 +23,7 @@ export default function AlunosAtivos() {
       setLoading(true);
       setErro(null);
 
-      const res = await apiFetch('/profissional/alunos');
+      const res = await apiFetch('/profissional/alunos?incluir_inativos=true');
 
       if (!res.ok) {
         throw new Error('Não foi possível carregar a lista de alunos.');
@@ -34,15 +33,26 @@ export default function AlunosAtivos() {
       setAlunos(data);
     } catch (err) {
       setErro(err.message);
-      
+
       setAlunos([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const alterarAtivo = async aluno => {
+    setAlterando(aluno.id);
+    try {
+      const res=await apiFetch(`/profissional/alunos/${aluno.id}/ativo`, {method:'PATCH',body:JSON.stringify({ativo:!aluno.ativo})});
+      if(!res.ok) throw new Error('Não foi possível atualizar o vínculo.');
+      await carregarAlunos();
+    } catch(err) {setErro(err.message);}
+    finally {setAlterando(null);}
+  };
+
   // Filtragem e ordenação de A a Z
   const alunosFiltrados = alunos
+    .filter(aluno => incluirInativos || aluno.ativo)
     .filter((aluno) =>
       aluno.nome.toLowerCase().includes(busca.toLowerCase()) ||
       aluno.email.toLowerCase().includes(busca.toLowerCase())
@@ -62,9 +72,9 @@ export default function AlunosAtivos() {
       <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-lg font-bold text-white mb-1">Alunos Ativos</h2>
+            <h2 className="text-lg font-bold text-white mb-1">{nutri?'Meus pacientes':'Meus alunos'}</h2>
             <p className="text-xs text-neutral-400">
-              Total de {alunosFiltrados.length} aluno(s) acompanhado(s)
+              Total de {alunosFiltrados.length} aluno(s). O status vale apenas para o seu acompanhamento.
             </p>
           </div>
 
@@ -81,10 +91,11 @@ export default function AlunosAtivos() {
           </div>
         </div>
 
+        <label className="flex gap-2 text-sm text-neutral-300 mb-4"><input type="checkbox" checked={incluirInativos} onChange={e=>setIncluirInativos(e.target.checked)}/>Mostrar também alunos inativos</label>
         {erro && (
           <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>Servidor offline no momento (`ERR_CONNECTION_REFUSED`). Exibindo lista de demonstração.</span>
+            <MensagemTemporaria as="span">{erro}</MensagemTemporaria>
           </div>
         )}
 
@@ -129,20 +140,21 @@ export default function AlunosAtivos() {
                     )}
                     <div className="flex items-center gap-2 text-neutral-500">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>Última ficha: {aluno.ultimaFicha || 'Nenhuma'}</span>
+                      <span>{aluno.ativo ? 'Ativo com você' : 'Inativo com você'}</span>
                     </div>
                   </div>
                 </div>
 
+                <button disabled={alterando===aluno.id} onClick={()=>alterarAtivo(aluno)} className="text-xs text-amber-400 py-2">{aluno.ativo ? 'Inativar acompanhamento' : 'Reativar acompanhamento'}</button>
                 <div className="flex items-center gap-2 pt-2 border-t border-neutral-900">
                   <button
-                    onClick={() => setAlunoAberto(aluno.id)}
+                    disabled={!aluno.ativo} onClick={() => setAlunoAberto(aluno.id)}
                     className="flex-1 flex items-center justify-center gap-1.5 bg-[#00AEFF] hover:bg-[#0092d6] text-black py-2 rounded-xl font-bold text-xs transition-colors"
                   >
-                    <Dumbbell className="w-3.5 h-3.5" /> Ver Fichas
+                    <Dumbbell className="w-3.5 h-3.5" /> {nutri?'Ver Dieta':'Ver Fichas'}
                   </button>
                   <button
-                    onClick={() => alert(`Criar nova ficha para ${aluno.nome}`)}
+                    disabled={!aluno.ativo} onClick={() => setAlunoAberto(aluno.id)}
                     className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl transition-colors"
                     title="Montar Ficha"
                   >
@@ -154,7 +166,7 @@ export default function AlunosAtivos() {
           </div>
         )}
       </div>
-      {alunoAberto&&<DetalhesAluno alunoId={alunoAberto} tipo="personal" onClose={()=>setAlunoAberto(null)}/>} 
+      {alunoAberto&&<DetalhesAluno alunoId={alunoAberto} tipo={nutri?'nutri':'personal'} onClose={()=>{setAlunoAberto(null);carregarAlunos();}}/>}
     </div>
   );
 }

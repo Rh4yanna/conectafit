@@ -1,0 +1,11 @@
+import {abasAcademia,menuAcademia,areasPermitidas} from './navegacao-academia';
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+import Cabecalho from '../../components/Cabecalho';
+/* eslint-disable react/prop-types */
+import {useEffect,useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
+import {useTheme} from '../../context/ThemeContext';
+import {apiFetch} from '../../config/api';
+import OperacaoAcademia from './OperacaoAcademia';
+import {campo} from './operacao-comum';
+export default function PainelAcademia({tela='inicio',equipe=false}){const {temaEscuro}=useTheme();const [parametros]=useSearchParams();const aba=parametros.get('aba');const usuario=JSON.parse(localStorage.getItem('usuario')||localStorage.getItem('usuarioLogado')||'{}');const [unidade,setUnidade]=useState(equipe?'':String(usuario.id)),[papel,setPapel]=useState(equipe?'professor':'gestor'),[acessos,setAcessos]=useState([]),[erro,setErro]=useState('');useEffect(()=>{if(equipe)apiFetch('/operacao-academia/acessos').then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.message);setAcessos(d);}).catch(e=>setErro(e.message));},[equipe]);return <div data-menu-inferior className={`academia-layout min-h-screen pb-28 ${temaEscuro?'bg-neutral-950 text-white':'bg-white text-gray-900'}`}><Cabecalho perfil="academia" nome={usuario.nome} equipe={equipe} menuItens={menuAcademia.filter(([a])=>areasPermitidas(papel,!equipe).includes(a))}/><main className="max-w-7xl mx-auto p-4 sm:p-6 space-y-5">{equipe&&<><label>Unidade vinculada<select className={campo} value={unidade} onChange={e=>setUnidade(e.target.value)}><option value="">Selecione uma unidade</option>{acessos.map(a=><option className="text-black" key={a.id} value={a.id}>{a.nome} · {a.papel}</option>)}</select></label>{!acessos.length&&!erro&&<p>O titular da academia precisa vincular o e-mail da sua conta na seção Equipe e acessos.</p>}</>}{erro&&<MensagemTemporaria as="p" role="alert">{erro}</MensagemTemporaria>}{unidade&&<OperacaoAcademia onPapel={setPapel} key={unidade} unidade={unidade} inicial={Object.hasOwn(abasAcademia,aba)?aba:tela} titular={usuario.tipo_usuario==='academia'&&String(usuario.id)===unidade}/>}</main></div>;}

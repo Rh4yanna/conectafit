@@ -1,0 +1,4 @@
+import {useEffect,useState} from 'react';
+import {apiFetch} from '../../config/api';
+export async function acompanhar(path,options={}){const r=await apiFetch('/acompanhamento'+path,{signal:AbortSignal.timeout(20000),...options});const d=await r.json();if(!r.ok)throw new Error(d.message||'Não foi possível carregar os registros.');return d;}
+export function useAcompanhamento(path){const [dados,setDados]=useState(null),[erro,setErro]=useState(''),[versao,setVersao]=useState(0);useEffect(()=>{const atualizar=()=>setVersao(v=>v+1);window.addEventListener('treinos-mensagens-atualizadas',atualizar);return()=>window.removeEventListener('treinos-mensagens-atualizadas',atualizar);},[]);useEffect(()=>{let ativo=true;setDados(null);setErro('');acompanhar(path).then(d=>{if(ativo)setDados(d);}).catch(e=>{if(ativo)setErro(e.message);});return()=>{ativo=false;};},[path,versao]);return {dados,erro,carregar:()=>setVersao(v=>v+1)};}

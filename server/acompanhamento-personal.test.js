@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import {servidorIsolado} from '../scripts/teste-servidor-isolado.mjs';
+test('acompanhamento real: sessões, cargas, dúvidas, pendências, ciclos e permissões independentes',async()=>{
+ const app=await servidorIsolado();try{
+ const users=[[1,'aluno'],[2,'personal'],[3,'personal'],[4,'aluno']];for(const [id,tipo]of users)await app.db.query(`INSERT INTO ${app.schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,$2,$3,'teste',$4)`,[id,`Pessoa ${id}`,`a${id}@example.invalid`,tipo]);
+ await app.db.query(`INSERT INTO ${app.schema}.conexoes_alunos(personal_id,aluno_id,status,ativo,permite_treinos,permite_medidas,permite_fotos,permite_metas) VALUES(2,1,'aceito',true,true,false,false,false),(3,1,'aceito',true,true,false,false,false),(2,4,'aceito',true,false,false,false,false)`);
+ const api=async(path,method='GET',body,user=2)=>{const r=await fetch(app.base+'/api'+path,{method,headers:{Authorization:'Bearer '+await app.token(user),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()};};
+ const ex={catalogo_id:'wger:75',nome:'Supino com halteres',series:2,repeticoes:'10',carga:'5 kg',orientacoes:'Manter orientação individual'};
+ const ficha=(await api('/treinos','POST',{titulo:'Sessão de teste',dias_semana:[1],exercicios:[ex]},1)).data;
+ const treinoId=ficha.id||ficha.treino?.id;assert.ok(treinoId,JSON.stringify(ficha));
+ let sessao=(await api('/sessoes-treino','POST',{treino_id:treinoId},1)).data.sessao;
+ sessao.exercicios[0].series[0]={carga:5,repeticoes:10,concluida:true};sessao.exercicios[0].observacoes='Não consegui a segunda série';
+ assert.equal((await api(`/sessoes-treino/${sessao.id}`,'PUT',{versao:sessao.versao,status:'incompleta',exercicios:sessao.exercicios,observacoes:'Dificuldade relatada'},1)).status,200);
+ let r=await api('/acompanhamento/alunos/1/sessoes?status=incompleta&dias=30');assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.data.sessoes[0].exercicios[0].series[1].concluida,false);assert.equal((await api('/acompanhamento/alunos/1/sessoes?dias=0')).status,200);
+ assert.equal((await api('/acompanhamento/alunos/1/sessoes','GET',null,1)).status,403);assert.equal((await api('/acompanhamento/alunos/4/sessoes')).status,403);
+ const body={personal_id:2,sessao_id:sessao.id,exercicio_indice:0,texto:'Como ajustar este movimento?',chave_cliente:crypto.randomUUID()};
+ let m=await api('/acompanhamento/mensagens','POST',body,1);assert.equal(m.status,201,JSON.stringify(m));m=m.data;assert.equal(m.referencia.exercicio.nome,'Supino com halteres');assert.equal((await api('/acompanhamento/mensagens','POST',body,1)).data.id,m.id);
+ assert.equal((await api('/acompanhamento/mensagens','POST',{...body,chave_cliente:crypto.randomUUID(),exercicio_indice:12},1)).status,400);
+ assert.equal((await api('/acompanhamento/mensagens','POST',{...body,chave_cliente:crypto.randomUUID()},4)).status,403);
+ assert.equal((await api(`/acompanhamento/sessoes/${sessao.id}/mensagens`,'GET',null,4)).status,404);
+ assert.equal((await api('/acompanhamento/alunos/1/mensagens','GET',null,3)).data.mensagens.length,0);
+ assert.equal((await api(`/acompanhamento/mensagens/${m.id}/resposta`,'POST',{resposta:'Indevida'},3)).status,404);
+ let pend=(await api('/acompanhamento/pendencias')).data;assert.equal(pend.find(p=>p.id===1).duvidas,1);assert.equal(pend.find(p=>p.id===4).ultimo_registro,null);
+ const respostas=await Promise.all(['Retorno A','Retorno B'].map(resposta=>api(`/acompanhamento/mensagens/${m.id}/resposta`,'POST',{resposta})));assert.deepEqual(respostas.map(r=>r.status).sort(),[200,409]);
+ assert.ok((await api(`/acompanhamento/sessoes/${sessao.id}/mensagens`,'GET',null,1)).data.mensagens[0].resposta);
+ assert.equal((await api('/acompanhamento/pendencias')).data.find(p=>p.id===1).duvidas,0);
+ const orientacao=await api('/acompanhamento/mensagens','POST',{aluno_id:1,tipo:'orientacao',texto:'Revisaremos a ficha juntos.',chave_cliente:crypto.randomUUID()});assert.equal(orientacao.status,201,JSON.stringify(orientacao));assert.equal((await api('/acompanhamento/retornos','GET',null,1)).data.mensagens.length,2);
+ sessao=(await api('/sessoes-treino','POST',{treino_id:treinoId},1)).data.sessao;sessao.exercicios[0].series.forEach(s=>Object.assign(s,{carga:8,repeticoes:10,concluida:true}));assert.equal((await api(`/sessoes-treino/${sessao.id}`,'PUT',{versao:sessao.versao,status:'concluida',exercicios:sessao.exercicios,observacoes:'Treino realizado sem dificuldades'},1)).status,200);
+ const evo=await api('/acompanhamento/alunos/1/evolucao?dias=30');assert.equal(evo.status,200);assert.equal(evo.data.exercicios[0].pontos[0].carga_maxima,8);assert.equal(evo.data.exercicios[0].pontos.length,1);
+ await app.db.query(`UPDATE ${app.schema}.treinos SET personal_id=2,origem='personal',revisao_em=current_date+3 WHERE id=$1`,[treinoId]);assert.equal((await api('/acompanhamento/pendencias')).data.find(p=>p.id===1).revisoes,1);
+ const checkin=(await app.db.query(`INSERT INTO ${app.schema}.checkins_semanais(aluno_id,semana,dificuldades,destinatarios) VALUES(1,current_date,'Cansaço',$1) RETURNING id`,[JSON.stringify([{id:2,ciclo:1,nome:'Pessoa 2',tipo:'personal'}])])).rows[0];
+ assert.equal((await api('/rotina/checkins?aluno_id=1')).data.checkins.length,1);assert.equal((await api('/rotina/checkins?aluno_id=4')).data.checkins.length,0);assert.equal((await api('/acompanhamento/pendencias')).data.find(p=>p.id===1).checkins,1);
+ assert.equal((await api(`/rotina/checkins/${checkin.id}/respostas`,'POST',{versao:1,resposta:'Vamos revisar a rotina.',chave_cliente:crypto.randomUUID()})).status,200);
+ assert.equal((await api('/acompanhamento/pendencias')).data.find(p=>p.id===1).checkins,0);
+ const dados=(await api('/evolucao/profissional/1')).data;assert.equal(dados.medidas,undefined);assert.equal(dados.fotos,undefined);assert.equal(dados.objetivos,undefined);
+ await app.db.query(`UPDATE ${app.schema}.conexoes_alunos SET permite_treinos=false WHERE personal_id=2 AND aluno_id=1`);
+ for(const path of ['/sessoes','/evolucao','/mensagens'])assert.equal((await api('/acompanhamento/alunos/1'+path)).status,403);
+ pend=(await api('/acompanhamento/pendencias')).data.find(p=>p.id===1);assert.equal(pend.ultimo_registro,null);assert.equal(pend.duvidas,null);assert.equal(pend.revisoes,null);
+ assert.equal((await api('/acompanhamento/mensagens','POST',{...body,chave_cliente:crypto.randomUUID()},1)).status,403);
+ assert.equal((await api('/acompanhamento/retornos','GET',null,1)).data.mensagens.length,2);
+ await app.db.query(`UPDATE ${app.schema}.conexoes_alunos SET permite_treinos=true,ciclo=2 WHERE personal_id=2 AND aluno_id=1`);assert.equal((await api('/acompanhamento/alunos/1/mensagens')).data.mensagens.length,0);assert.equal((await api(`/acompanhamento/mensagens/${m.id}/resposta`,'POST',{resposta:'Novo retorno'})).status,403);
+ }finally{await app.fechar();}
+});

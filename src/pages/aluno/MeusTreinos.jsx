@@ -1,61 +1,52 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Dumbbell,
-  Plus,
-  Trash2,
-  Edit3,
-  UserCheck,
-  Play,
-  Menu,
-  Utensils,
-  User,
-  Sun,
-  Moon,
-  LogOut,
-  X,
-  Search,
-  Link2,
-  Home,
-  Compass,
-  ChevronRight,
-  Loader2,
-  CheckCircle2
-} from "lucide-react";
+import AbasAluno from '../../components/aluno/AbasAluno';
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+import ModalAlimentacao from '../../components/alimentacao/ModalAlimentacao';
+import SessoesTreino from './SessoesTreino';
+import BibliotecaExercicios from '../../components/BibliotecaExercicios';
+import DemonstracaoExercicio from '../../components/DemonstracaoExercicio';
+import { useTheme } from '../../context/ThemeContext';
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Dumbbell, Plus, Trash2, Edit3, Play, Loader2 } from "lucide-react";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000/api").replace(/\/$/, "");
+import { apiFetch } from '../../config/api';
 
 export default function MeusTreinos() {
   const navigate = useNavigate();
+  const [parametros, setParametros] = useSearchParams();
+  const [biblioteca, setBiblioteca] = useState(false);
+  const [alvoBiblioteca, setAlvoBiblioteca] = useState(null);
+  const [diasSemana, setDiasSemana] = useState([]);
+  const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
   // TEMA
-  const [temaEscuro, setTemaEscuro] = useState(true);
-  const toggleTema = () => setTemaEscuro((prev) => !prev);
+  const {temaEscuro} = useTheme();
 
   // ESTADOS PRINCIPAIS
-  const [sidebarAberta, setSidebarAberta] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
+  const [aba,setAba]=useState('sessao');
   const [treinoAtivo, setTreinoAtivo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [carregandoTreinos, setCarregandoTreinos] = useState(true);
+  const [erroTreinos, setErroTreinos] = useState('');
+  const [erroFormulario,setErroFormulario]=useState('');
 
   // ESTADOS DE DADOS
-  const [usuario, setUsuario] = useState({
-    id: 1, // ID padrão para teste caso o backend não retorne nada
-    nome: "Aluno Teste",
-    email: "teste@email.com",
-    tipo_usuario: "aluno",
-  });
   const [treinos, setTreinos] = useState([]);
+  useEffect(() => {
+    const id = parametros.get('ficha');
+    if (!id || carregandoTreinos) return;
+    const ficha = treinos.find(t => String(t.id) === id);
+    if (ficha) setTreinoAtivo(ficha);
+    setParametros({}, { replace: true });
+  }, [parametros, treinos, carregandoTreinos, setParametros]);
 
-  // CONFIGURAÇÃO SIMPLES SEM TOKEN
+  // Requisições autenticadas das fichas.
   const getFetchConfig = (method = "GET", body = null) => {
-    const token = localStorage.getItem("token");
     const config = {
       method,
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     };
 
@@ -67,56 +58,42 @@ export default function MeusTreinos() {
   };
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) {
+    if (!localStorage.getItem("usuario")) {
       navigate("/login", { replace: true });
     }
   }, [navigate]);
 
-  // 1. CARREGAR DADOS DO USUÁRIO E TREINOS (SEM BLOQUEIO POR 401)
+  // Carregar fichas do aluno.
   useEffect(() => {
     const carregarDadosIniciais = async () => {
       setCarregandoTreinos(true);
       try {
-        // Tenta carregar usuário
-        const resUser = await fetch(`${API_URL}/usuario/me`, getFetchConfig("GET")).catch(() => null);
-        if (resUser?.status === 401) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("usuario");
-          navigate("/login", { replace: true });
-          return;
-        }
-        if (resUser && resUser.ok) {
-          const usuarioCarregado = await resUser.json();
-          setUsuario(usuarioCarregado);
-        }
-
-        // Tenta carregar treinos
-        const resTreinos = await fetch(`${API_URL}/treinos`, getFetchConfig("GET")).catch(() => null);
+        const resTreinos = await apiFetch('/treinos', getFetchConfig("GET")).catch(() => null);
         if (resTreinos?.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("usuario");
           navigate("/login", { replace: true });
           return;
         }
+        if (!resTreinos || !resTreinos.ok) throw new Error('Não foi possível carregar seus treinos. Tente novamente mais tarde.');
         if (resTreinos && resTreinos.ok) {
           const dataTreinos = await resTreinos.json();
           setTreinos(Array.isArray(dataTreinos) ? dataTreinos : []);
         }
       } catch (error) {
-        console.error("Erro ao carregar dados do backend:", error);
+        setErroTreinos(error.message);
       } finally {
         setCarregandoTreinos(false);
       }
     };
 
     carregarDadosIniciais();
-  }, []);
+  }, [navigate]);
 
   // FECHAR MODAIS COM ESC
   useEffect(() => {
     function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setSidebarAberta(false);
+      if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
         setModalAberto(false);
         setTreinoAtivo(null);
       }
@@ -128,24 +105,14 @@ export default function MeusTreinos() {
   // FORMULÁRIO DE CRIAR/EDITAR
   const [idEditando, setIdEditando] = useState(null);
   const [novoTitulo, setNovoTitulo] = useState("");
-  const [exerciciosForm, setExerciciosForm] = useState([
-    { nome: "", series: "3", repeticoes: "12", carga: "" },
-  ]);
+  const [exerciciosForm, setExerciciosForm] = useState([]);
 
-  const handleLogout = () => {
-    navigate("/login");
-  };
 
   // AÇÕES DO FORMULÁRIO
-  const adicionarExercicioForm = () => {
-    setExerciciosForm([
-      ...exerciciosForm,
-      { nome: "", series: "3", repeticoes: "12", carga: "" },
-    ]);
-  };
+
 
   const removerExercicioForm = (index) => {
-    if (exerciciosForm.length > 1) {
+    if (exerciciosForm.length > 0) {
       setExerciciosForm(exerciciosForm.filter((_, i) => i !== index));
     }
   };
@@ -153,7 +120,7 @@ export default function MeusTreinos() {
   const handleExercicioChange = (index, campo, valor) => {
     const novos = exerciciosForm.map((item, i) => {
       if (i === index) {
-        return { ...item, [campo]: valor };
+        return { ...item, [campo]: valor, ...(campo === 'nome' ? { catalogo_id: null } : {}) };
       }
       return item;
     });
@@ -161,13 +128,15 @@ export default function MeusTreinos() {
   };
 
   const abrirModalNovoTreino = () => {
+    setDiasSemana([]);
     setIdEditando(null);
     setNovoTitulo("");
-    setExerciciosForm([{ nome: "", series: "3", repeticoes: "12", carga: "" }]);
+    setExerciciosForm([]);
     setModalAberto(true);
   };
 
   const abrirModalEditarTreino = (treino) => {
+    setDiasSemana(treino.dias_semana || []);
     setIdEditando(treino.id);
     setNovoTitulo(treino.titulo || "");
 
@@ -187,17 +156,18 @@ export default function MeusTreinos() {
     setModalAberto(true);
   };
 
-  // 2. SALVAR TREINO SEM REQUERER TOKEN
+  // Salvar ficha.
   const salvarTreino = async (e) => {
     e.preventDefault();
-    if (!novoTitulo.trim()) return;
+    if (loading || !novoTitulo.trim()) return;
+    setErroFormulario('');
 
     const exerciciosFiltrados = exerciciosForm.filter(
       (ex) => ex.nome.trim() !== ""
     );
 
     if (exerciciosFiltrados.length === 0) {
-      alert("Adicione pelo menos um exercício com nome válido.");
+      setErroFormulario("Adicione pelo menos um exercício com nome válido.");
       return;
     }
 
@@ -206,12 +176,13 @@ export default function MeusTreinos() {
     const payload = {
       titulo: novoTitulo.trim(),
       exercicios: exerciciosFiltrados,
+      dias_semana: diasSemana,
     };
 
     try {
       if (idEditando) {
-        const response = await fetch(
-          `${API_URL}/treinos/${idEditando}`,
+        const response = await apiFetch(
+          `/treinos/${idEditando}`,
           getFetchConfig("PUT", payload)
         );
 
@@ -223,11 +194,11 @@ export default function MeusTreinos() {
           setModalAberto(false);
         } else {
           const errData = await response.json().catch(() => ({}));
-          alert(`Erro do servidor (${response.status}): ${errData.message || errData.error || "Erro ao atualizar."}`);
+          setErroFormulario(errData.message || "Não foi possível atualizar o treino.");
         }
       } else {
-        const response = await fetch(
-          `${API_URL}/treinos`,
+        const response = await apiFetch(
+          '/treinos',
           getFetchConfig("POST", payload)
         );
 
@@ -237,12 +208,12 @@ export default function MeusTreinos() {
           setModalAberto(false);
         } else {
           const errData = await response.json().catch(() => ({}));
-          alert(`Erro do servidor (${response.status}): ${errData.message || errData.error || "Erro ao salvar."}`);
+          setErroFormulario(errData.message || "Não foi possível salvar o treino.");
         }
       }
     } catch (error) {
       console.error("Erro na requisição:", error);
-      alert("Erro ao conectar com a API Backend.");
+      setErroFormulario(error.message);
     } finally {
       setLoading(false);
     }
@@ -253,8 +224,8 @@ export default function MeusTreinos() {
     if (!window.confirm("Deseja realmente excluir este treino?")) return;
 
     try {
-      const response = await fetch(
-        `${API_URL}/treinos/${id}`,
+      const response = await apiFetch(
+        `/treinos/${id}`,
         getFetchConfig("DELETE")
       );
 
@@ -262,11 +233,11 @@ export default function MeusTreinos() {
         setTreinos((anteriores) => anteriores.filter((t) => t.id !== id));
       } else {
         const errData = await response.json().catch(() => ({}));
-        alert(`Erro ao remover: ${errData.message || "Erro no servidor."}`);
+        setErroTreinos(errData.message || "Não foi possível remover o treino.");
       }
     } catch (error) {
       console.error("Erro ao deletar treino:", error);
-      alert("Erro ao conectar com o servidor.");
+      setErroTreinos(error.message);
     }
   };
 
@@ -281,226 +252,17 @@ export default function MeusTreinos() {
     return Array.isArray(exercicios) ? exercicios : [];
   };
 
+  const grupos = [
+    {id:'pessoais', titulo:'Meus treinos', fichas:treinos.filter(t=>t.origem!=='personal')},
+    {id:'personal', titulo:'Treinos do personal', fichas:treinos.filter(t=>t.origem==='personal')},
+  ].filter(g=>g.fichas.length);
   return (
     <div
       className={`min-h-screen transition-colors duration-300 font-sans antialiased pb-28 ${
         temaEscuro ? "bg-black text-white" : "bg-gray-100 text-gray-900"
       }`}
     >
-      {/* OVERLAY SIDEBAR */}
-      {sidebarAberta && (
-        <div
-          onClick={() => setSidebarAberta(false)}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 transition-opacity"
-        />
-      )}
 
-      {/* SIDEBAR LATERAL */}
-      <aside
-        className={`fixed top-0 left-0 bottom-0 w-72 z-50 flex flex-col justify-between p-4 border-r transition-transform duration-300 ease-in-out ${
-          sidebarAberta ? "translate-x-0" : "-translate-x-full"
-        } ${
-          temaEscuro
-            ? "bg-[#0e0e10] border-neutral-800/80 text-white"
-            : "bg-white border-gray-200 text-gray-800"
-        }`}
-      >
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setSidebarAberta(false)}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div
-            onClick={() => {
-              setSidebarAberta(false);
-              navigate("/aluno/perfil");
-            }}
-            className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
-              temaEscuro
-                ? "bg-neutral-900/80 border-neutral-800 hover:border-neutral-700"
-                : "bg-gray-50 border-gray-200 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-9 h-9 bg-[#00AEFF]/15 border border-[#00AEFF]/30 text-[#00AEFF] rounded-xl flex items-center justify-center shrink-0">
-                <User className="w-4 h-4" />
-              </div>
-              <div className="truncate">
-                <p className="text-xs font-bold truncate">{usuario.nome}</p>
-                <p className="text-[10px] text-neutral-400 truncate">{usuario.email}</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-neutral-500 shrink-0" />
-          </div>
-
-          <nav className="space-y-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setSidebarAberta(false);
-                navigate("/aluno/perfil");
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                temaEscuro
-                  ? "hover:bg-neutral-800/60 text-neutral-300 hover:text-white"
-                  : "hover:bg-gray-100 text-gray-700"
-              }`}
-            >
-              <UserCheck className="w-4.5 h-4.5 text-[#00AEFF]" />
-              <span>Gerenciar Perfil</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSidebarAberta(false)}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold border transition-all ${
-                temaEscuro
-                  ? "bg-neutral-900/90 border-neutral-800 text-white"
-                  : "bg-emerald-50 border-emerald-200 text-emerald-900"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Dumbbell className="w-4.5 h-4.5 text-blue-400" />
-                <span>Gerenciar Treinos</span>
-              </div>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSidebarAberta(false);
-                navigate("/aluno/dietas");
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                temaEscuro
-                  ? "hover:bg-neutral-800/60 text-neutral-300 hover:text-white"
-                  : "hover:bg-gray-100 text-gray-700"
-              }`}
-            >
-              <Utensils className="w-4.5 h-4.5 text-emerald-400" />
-              <span>Gerenciar Dietas</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSidebarAberta(false);
-                navigate("/aluno/conexoes");
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                temaEscuro
-                  ? "hover:bg-neutral-800/60 text-neutral-300 hover:text-white"
-                  : "hover:bg-gray-100 text-gray-700"
-              }`}
-            >
-              <Link2 className="w-4.5 h-4.5 text-purple-400" />
-              <span>Gerenciar Conexões</span>
-            </button>
-
-            <div
-              className={`my-2 border-t ${
-                temaEscuro ? "border-neutral-800/80" : "border-gray-200"
-              }`}
-            />
-
-            <button
-              type="button"
-              onClick={() => {
-                setSidebarAberta(false);
-                navigate("/aluno/servicos");
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                temaEscuro
-                  ? "hover:bg-neutral-800/60 text-neutral-300 hover:text-white"
-                  : "hover:bg-gray-100 text-gray-700"
-              }`}
-            >
-              <Search className="w-4.5 h-4.5 text-amber-400" />
-              <span>Buscar Serviços</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleTema}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                temaEscuro
-                  ? "hover:bg-neutral-800/60 text-neutral-300 hover:text-white"
-                  : "hover:bg-gray-100 text-gray-700"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                {temaEscuro ? (
-                  <Sun className="w-4.5 h-4.5 text-amber-400" />
-                ) : (
-                  <Moon className="w-4.5 h-4.5 text-indigo-500" />
-                )}
-                <span>{temaEscuro ? "Modo Claro" : "Modo Escuro"}</span>
-              </div>
-            </button>
-          </nav>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-red-500 hover:bg-red-500/10 transition-colors mt-auto"
-        >
-          <LogOut className="w-4.5 h-4.5" />
-          <span>Sair da conta</span>
-        </button>
-      </aside>
-
-      {/* HEADER */}
-      <header
-        className={`border-b sticky top-0 z-40 backdrop-blur-md transition-colors duration-300 ${
-          temaEscuro
-            ? "bg-black/80 border-neutral-800"
-            : "bg-white/90 border-gray-200"
-        }`}
-      >
-        <div className="w-full max-w-none px-5 lg:px-10 py-4 flex justify-between items-center">
-          <button
-            type="button"
-            onClick={() => setSidebarAberta(true)}
-            className={`p-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 flex items-center justify-center ${
-              temaEscuro
-                ? "bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700"
-                : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
-            }`}
-            title="Abrir Menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          <div
-            onClick={() => navigate("/aluno/perfil")}
-            className="flex items-center gap-3 text-right cursor-pointer group p-1.5 rounded-2xl hover:bg-neutral-800/40 transition-all"
-          >
-            <div>
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight group-hover:text-[#00AEFF] transition-colors">
-                Olá, <span className="text-[#00AEFF]">{usuario.nome}</span>!
-              </h1>
-              <p
-                className={`text-[10px] sm:text-xs font-medium ${
-                  temaEscuro ? "text-neutral-400" : "text-gray-500"
-                }`}
-              >
-                Painel do Aluno
-              </p>
-            </div>
-            <div className="w-10 h-10 bg-[#00AEFF]/15 border border-[#00AEFF]/30 text-[#00AEFF] rounded-2xl flex items-center justify-center font-bold">
-              <User className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-      </header>
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="w-full max-w-none px-5 lg:px-10 pt-8 space-y-6">
@@ -512,7 +274,7 @@ export default function MeusTreinos() {
                 temaEscuro ? "text-neutral-400" : "text-gray-600"
               }`}
             >
-              Crie e gerencie suas rotinas de treino sem restrição.
+              Organize seus treinos pessoais e consulte as fichas do personal.
             </p>
           </div>
 
@@ -522,17 +284,18 @@ export default function MeusTreinos() {
             className="px-4 py-3 bg-[#00AEFF] hover:bg-[#0096dc] text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-[#00AEFF]/20 flex items-center gap-2 shrink-0 justify-center"
           >
             <Plus className="w-4 h-4" />
-            <span>Criar Novo Treino</span>
+            <span>Adicionar treino</span>
           </button>
         </div>
 
-        {/* LISTA OU LOADING */}
+
+        <AbasAluno valor={aba} onChange={setAba} itens={[['sessao','Meus treinos'],['historico','Histórico'],['retornos','Feedbacks']]}/><div hidden={aba!=='sessao'}>
         {carregandoTreinos ? (
           <div className="flex flex-col items-center justify-center py-16 space-y-3">
             <Loader2 className="w-8 h-8 text-[#00AEFF] animate-spin" />
             <p className="text-xs text-neutral-400">Carregando treinos...</p>
           </div>
-        ) : treinos.length === 0 ? (
+        ) : erroTreinos ? <MensagemTemporaria as="p" role="alert" className="p-6 rounded-2xl border border-red-500/30 text-red-400">{erroTreinos}</MensagemTemporaria> : treinos.length === 0 ? (
           <div
             className={`border rounded-3xl p-12 text-center space-y-3 ${
               temaEscuro
@@ -549,44 +312,61 @@ export default function MeusTreinos() {
                 temaEscuro ? "text-neutral-400" : "text-gray-500"
               }`}
             >
-              Clique no botão acima para criar o seu primeiro treino!
+              Sua ficha ainda não foi cadastrada. Crie um treino ou conecte-se a um personal para receber orientação.
             </p>
+            <div className="flex flex-wrap justify-center gap-3 pt-3">
+              <button onClick={abrirModalNovoTreino} className="bg-[#00AEFF] text-white font-bold px-4 py-3 rounded-xl">Criar meu primeiro treino</button>
+              <button onClick={()=>navigate('/aluno/conexoes')} className="border border-neutral-500 px-4 py-3 rounded-xl">Ver minhas conexões</button>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {treinos.map((treino) => {
+          <div className={`grid grid-cols-1 ${grupos.length > 1 ? 'lg:grid-cols-2' : ''} gap-6 items-start`}>
+            {grupos.map(grupo=><section key={grupo.id} aria-label={grupo.titulo} className="min-w-0 space-y-4">
+              {grupos.length > 1 && <h2 className="text-xl font-bold">{grupo.titulo}</h2>}
+              <div className={`grid gap-4 items-start ${grupos.length === 1 ? 'sm:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
+              {[1,2,3,4,5,6,0,null].map(dia=>{
+                const fichas=grupo.fichas.filter(t=>dia===null?!t.dias_semana?.length:t.dias_semana?.includes(dia));
+                if(dia===null&&!fichas.length)return null;
+                return <section key={dia??'livre'} className="min-w-0 space-y-3" aria-label={dia===null?'Sem dia definido':dias[dia]}>
+                  <h3 className="font-semibold border-b border-neutral-500/20 pb-2">{dia===null?'Sem dia definido':dias[dia]}</h3>
+                  {!fichas.length&&<p className="text-sm text-neutral-400">Sem treino programado</p>}
+            {fichas.map((treino) => {
               const exList = parseExercicios(treino.exercicios);
 
               return (
                 <div
                   key={treino.id}
-                  className={`border rounded-3xl p-6 transition-all flex flex-col justify-between ${
+                  data-card-treino={treino.id}
+                  className={`border rounded-2xl p-4 transition-all flex flex-col justify-between ${
                     temaEscuro
                       ? "bg-neutral-900 border-neutral-800"
                       : "bg-white border-gray-200 shadow-sm"
                   }`}
                 >
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 ${
                             treino.origem === "personal"
-                              ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                              ? "bg-sky-500/10 text-sky-400 border border-sky-500/20"
                               : "bg-[#00AEFF]/10 text-[#00AEFF] border border-[#00AEFF]/20"
                           }`}
                         >
                           <Dumbbell className="w-3 h-3" />
-                          <span>{treino.criado_por || "Aluno"}</span>
+                          <span className="break-words">{treino.origem === 'personal' ? treino.criado_por || 'Personal' : 'Treino pessoal'}</span>
                         </span>
-                        <h2 className="text-lg font-extrabold tracking-tight">
+                        <h2 className="text-base font-bold tracking-tight break-words">
                           {treino.titulo}
                         </h2>
+                        <p className="text-sm mt-1">{treino.dias_semana?.length ? treino.dias_semana.map(n => dias[n]).join(' · ') : 'Sem dias definidos'}</p>{(treino.inicio_em||treino.fim_em)&&<p className="text-sm">Programação: {treino.inicio_em?.slice(0,10)||'sem início'} até {treino.fim_em?.slice(0,10)||'sem fim'}</p>}
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      {treino.origem === 'aluno' && <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
+                          disabled={treino.origem === 'personal'}
+                          title={treino.origem === 'personal' ? 'Prescrição revisada pelo personal responsável' : 'Editar treino pessoal'}
                           onClick={() => abrirModalEditarTreino(treino)}
                           className={`p-2 rounded-xl border transition-all ${
                             temaEscuro
@@ -598,70 +378,25 @@ export default function MeusTreinos() {
                         </button>
                         <button
                           type="button"
+                          disabled={treino.origem === 'personal'}
+                          title={treino.origem === 'personal' ? 'O personal pode arquivar esta ficha' : 'Excluir treino pessoal'}
                           onClick={() => deletarTreino(treino.id)}
                           className="p-2 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      </div>
+                      </div>}
                     </div>
 
-                    <div className="space-y-2">
-                      <p
-                        className={`text-[11px] font-bold uppercase ${
-                          temaEscuro ? "text-neutral-400" : "text-gray-500"
-                        }`}
-                      >
-                        Exercícios ({exList.length})
-                      </p>
-
-                      <div className="space-y-1.5">
-                        {exList.slice(0, 3).map((ex, idx) => (
-                          <div
-                            key={idx}
-                            className={`p-3 rounded-xl border flex items-center justify-between text-xs font-semibold ${
-                              temaEscuro
-                                ? "bg-neutral-950/60 border-neutral-800/80"
-                                : "bg-gray-50 border-gray-200"
-                            }`}
-                          >
-                            <span className="truncate pr-2">{ex.nome}</span>
-                            <div className="flex items-center gap-2 shrink-0 text-[11px] font-bold text-[#00AEFF]">
-                              <span>
-                                {ex.series}x {ex.repeticoes}
-                              </span>
-                              {ex.carga && (
-                                <span
-                                  className={`px-1.5 py-0.5 rounded ${
-                                    temaEscuro
-                                      ? "bg-neutral-800 text-neutral-300"
-                                      : "bg-gray-200 text-gray-700"
-                                  }`}
-                                >
-                                  {ex.carga}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {exList.length > 3 && (
-                          <p
-                            className={`text-[10px] text-center font-bold pt-1 ${
-                              temaEscuro ? "text-neutral-500" : "text-gray-400"
-                            }`}
-                          >
-                            + {exList.length - 3} outros exercícios
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <p className={`text-sm ${temaEscuro ? 'text-neutral-400' : 'text-gray-500'}`}>{exList.length} exercícios</p>
+                    <p className={`text-xs line-clamp-1 ${temaEscuro ? 'text-neutral-400' : 'text-gray-500'}`} title={exList.map(ex=>ex.nome).join(' · ')}>{exList.map(ex=>ex.nome).join(' · ')}</p>
                   </div>
 
-                  <div className="pt-6">
+                  <div className="pt-3">
                     <button
                       type="button"
                       onClick={() => setTreinoAtivo(treino)}
-                      className="w-full py-3 bg-[#00AEFF] hover:bg-[#0096dc] text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-[#00AEFF]/20 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-[#00AEFF] hover:bg-[#0096dc] text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-[#00AEFF]/20 flex items-center justify-center gap-2"
                     >
                       <Play className="w-4 h-4 fill-white" />
                       <span>Iniciar / Ver Treino</span>
@@ -670,34 +405,21 @@ export default function MeusTreinos() {
                 </div>
               );
             })}
+                </section>;
+              })}
+              </div>
+            </section>)}
           </div>
         )}
+        </div><SessoesTreino aba={aba} ficha={treinoAtivo} limparFicha={() => setTreinoAtivo(null)} />
       </main>
 
       {/* MODAL CRIAR / EDITAR TREINO */}
       {modalAberto && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div
-            className={`w-full max-w-xl rounded-3xl border p-6 max-h-[90vh] overflow-y-auto ${
-              temaEscuro
-                ? "bg-neutral-900 border-neutral-800 text-white"
-                : "bg-white border-gray-200 text-gray-900"
-            }`}
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-              <h2 className="text-lg font-black">
-                {idEditando ? "Editar Treino" : "Novo Treino"}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setModalAberto(false)}
-                className="p-2 rounded-xl hover:bg-neutral-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={salvarTreino} className="space-y-4 pt-4">
+        <ModalAlimentacao titulo={idEditando?'Editar Treino':'Novo Treino'} ocupado={loading} onClose={()=>setModalAberto(false)}>
+            <form onSubmit={salvarTreino} className="space-y-4 pt-4">{erroFormulario&&<MensagemTemporaria as="p" role="alert" className="text-red-500">{erroFormulario}</MensagemTemporaria>}
+              <fieldset className="border border-neutral-500/30 rounded-xl p-4 space-y-3"><legend className="font-bold">Dias da semana</legend><p className="text-sm">Em quais dias você fará esta ficha? Ela aparecerá no painel nesses dias, toda semana, no horário de Brasília.</p><div className="flex flex-wrap gap-2">{[1,2,3,4,5,6,0].map(n => <label key={n} className={`flex items-center gap-2 border rounded-xl px-3 py-2 cursor-pointer ${diasSemana.includes(n) ? 'border-sky-500 bg-sky-500/10' : 'border-neutral-500/30'}`}><input type="checkbox" checked={diasSemana.includes(n)} onChange={e => setDiasSemana(v => e.target.checked ? [...v,n].sort() : v.filter(d => d !== n))}/> {dias[n]}</label>)}</div><p className="text-sm" role="status">{diasSemana.length ? `Programado para: ${[1,2,3,4,5,6,0].filter(n => diasSemana.includes(n)).map(n => dias[n]).join(', ')}.` : 'Sem programação: disponível em Meus Treinos, mas não aparece como treino do dia.'}</p>{treinos.some(t => String(t.id) !== String(idEditando) && t.dias_semana?.some(n => diasSemana.includes(n))) && <p className="text-sm">Você já tem outra ficha em um dos dias selecionados. As duas aparecerão no painel para você escolher.</p>}</fieldset>
+              <div className="rounded-xl border border-sky-500/40 p-4 space-y-2"><h3 className="font-bold">Escolha seus exercícios</h3><p className="text-sm">Busque na biblioteca e selecione a variação e o equipamento. Depois, ajuste séries, repetições e carga.</p><button type="button" disabled={exerciciosForm.length >= 50} className="w-full bg-sky-600 text-white rounded-xl p-3 font-bold disabled:opacity-50" onClick={() => { setAlvoBiblioteca(null); setBiblioteca(true); }}>Adicionar da biblioteca de exercícios</button></div>
               <div>
                 <label
                   className={`block text-[10px] font-bold uppercase mb-1 ${
@@ -709,6 +431,7 @@ export default function MeusTreinos() {
                 <input
                   type="text"
                   required
+                  maxLength={120}
                   value={novoTitulo}
                   onChange={(e) => setNovoTitulo(e.target.value)}
                   placeholder="Ex: Treino C - Pernas e Ombro"
@@ -729,15 +452,10 @@ export default function MeusTreinos() {
                   >
                     Exercícios
                   </label>
-                  <button
-                    type="button"
-                    onClick={adicionarExercicioForm}
-                    className="text-[11px] font-bold text-[#00AEFF] hover:underline flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" /> Adicionar Exercício
-                  </button>
+
                 </div>
 
+                {!exerciciosForm.length && <p className="text-sm border border-dashed border-neutral-500/40 rounded-xl p-4">Nenhum exercício selecionado. Escolha exercícios com vídeo na biblioteca.</p>}
                 {exerciciosForm.map((ex, idx) => (
                   <div
                     key={idx}
@@ -747,11 +465,16 @@ export default function MeusTreinos() {
                         : "bg-gray-50 border-gray-200"
                     }`}
                   >
+                    <div className="flex flex-wrap items-center gap-3"><button type="button" className="acao-secundaria text-sky-500 text-sm" onClick={() => { setAlvoBiblioteca(idx); setBiblioteca(true); }}>Vincular exercício da biblioteca</button>{ex.catalogo_id && <span className="text-xs">Vinculado à biblioteca</span>}</div>
+                    {ex.catalogo_id && <DemonstracaoExercicio key={ex.catalogo_id} catalogoId={ex.catalogo_id}/>}
                     <div className="flex items-center justify-between gap-2">
                       <input
                         type="text"
                         required
                         placeholder="Nome do exercício"
+                        maxLength={120}
+                        aria-label={`Nome do exercício ${idx + 1}`}
+                        readOnly={Boolean(ex.catalogo_id)}
                         value={ex.nome}
                         onChange={(e) =>
                           handleExercicioChange(idx, "nome", e.target.value)
@@ -762,10 +485,11 @@ export default function MeusTreinos() {
                             : "bg-white border-gray-300 text-gray-900"
                         }`}
                       />
-                      {exerciciosForm.length > 1 && (
+                      {exerciciosForm.length > 0 && (
                         <button
                           type="button"
                           onClick={() => removerExercicioForm(idx)}
+                          aria-label={`Remover exercício ${idx + 1}`}
                           className="p-2 text-red-500 hover:opacity-80"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -777,6 +501,11 @@ export default function MeusTreinos() {
                       <input
                         type="number"
                         placeholder="Séries"
+                        aria-label={`Quantidade de séries do exercício ${idx + 1}`}
+                        required
+                        min="1"
+                        max="30"
+                        step="1"
                         value={ex.series}
                         onChange={(e) =>
                           handleExercicioChange(idx, "series", e.target.value)
@@ -818,6 +547,7 @@ export default function MeusTreinos() {
                         }`}
                       />
                     </div>
+                    <label className="block text-xs">Orientações para este exercício<textarea className={`block w-full border border-neutral-500 rounded-lg p-2 ${temaEscuro ? 'bg-neutral-900' : 'bg-white'}`} rows={2} maxLength={1000} value={ex.orientacoes || ''} onChange={e => handleExercicioChange(idx, 'orientacoes', e.target.value)}/></label>
                   </div>
                 ))}
               </div>
@@ -825,7 +555,7 @@ export default function MeusTreinos() {
               <div className="pt-4 border-t border-neutral-800 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setModalAberto(false)}
+                  disabled={loading} onClick={() => setModalAberto(false)}
                   className={`px-4 py-2.5 rounded-xl text-xs font-bold ${
                     temaEscuro
                       ? "bg-neutral-800 text-neutral-300"
@@ -844,96 +574,21 @@ export default function MeusTreinos() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalAlimentacao>
       )}
 
-      {/* MODAL DETALHES / EXECUTAR TREINO */}
-      {treinoAtivo && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div
-            className={`w-full max-w-lg rounded-3xl border p-6 max-h-[90vh] overflow-y-auto space-y-4 ${
-              temaEscuro
-                ? "bg-neutral-900 border-neutral-800 text-white"
-                : "bg-white border-gray-200 text-gray-900"
-            }`}
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-              <div>
-                <span className="text-[10px] font-bold text-[#00AEFF] uppercase tracking-wider">
-                  Modo de Execução
-                </span>
-                <h2 className="text-xl font-black">{treinoAtivo.titulo}</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTreinoAtivo(null)}
-                className="p-2 rounded-xl hover:bg-neutral-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="space-y-3">
-              {parseExercicios(treinoAtivo.exercicios).map((ex, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-2xl border flex items-center justify-between ${
-                    temaEscuro
-                      ? "bg-neutral-950 border-neutral-800"
-                      : "bg-gray-50 border-gray-200"
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold">{ex.nome}</p>
-                    <p
-                      className={`text-xs ${
-                        temaEscuro ? "text-neutral-400" : "text-gray-500"
-                      }`}
-                    >
-                      {ex.series} séries x {ex.repeticoes} reps
-                      {ex.carga ? ` • Carga: ${ex.carga}` : ""}
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-neutral-600 hover:text-emerald-400 cursor-pointer transition-colors" />
-                </div>
-              ))}
-            </div>
 
-            <div className="pt-4 border-t border-neutral-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setTreinoAtivo(null)}
-                className="w-full py-3 bg-[#00AEFF] hover:bg-[#0096dc] text-white font-bold text-xs rounded-xl"
-              >
-                Concluir Treino
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <footer className="fixed bottom-0 left-0 right-0 z-40 p-4">
-        <div className={`max-w-lg mx-auto rounded-full border backdrop-blur-xl shadow-2xl p-2 px-6 flex justify-between items-center transition-colors duration-300 ${
-          temaEscuro ? "bg-neutral-900/90 border-neutral-800/80 text-neutral-400" : "bg-white/90 border-gray-200/80 text-gray-500"
-        }`}>
-          <button type="button" onClick={() => navigate("/aluno/dashboard")} className={`flex flex-col items-center gap-1 transition-all hover:scale-110 ${temaEscuro ? "hover:text-white" : "hover:text-gray-900"}`}>
-            <Home className="w-5 h-5" /><span className="text-[10px] font-bold">Início</span>
-          </button>
-          <button type="button" onClick={() => navigate("/aluno/treinos")} className="flex flex-col items-center gap-1 text-[#00AEFF] transition-all hover:scale-110">
-            <Dumbbell className="w-5 h-5" /><span className="text-[10px] font-bold">Treinos</span>
-          </button>
-          <button type="button" onClick={() => navigate("/aluno/servicos")} className="flex flex-col items-center gap-1 -mt-5 bg-[#00AEFF] text-white p-3 rounded-full shadow-lg shadow-[#00AEFF]/30 transition-all hover:scale-110" title="Buscar Serviços">
-            <Compass className="w-6 h-6" />
-          </button>
-          <button type="button" onClick={() => navigate("/aluno/dietas")} className={`flex flex-col items-center gap-1 transition-all hover:scale-110 ${temaEscuro ? "hover:text-white" : "hover:text-gray-900"}`}>
-            <Utensils className="w-5 h-5" /><span className="text-[10px] font-bold">Dietas</span>
-          </button>
-          <button type="button" onClick={() => navigate("/aluno/perfil")} className={`flex flex-col items-center gap-1 transition-all hover:scale-110 ${temaEscuro ? "hover:text-white" : "hover:text-gray-900"}`}>
-            <User className="w-5 h-5" /><span className="text-[10px] font-bold">Perfil</span>
-          </button>
-        </div>
-      </footer>
+      {biblioteca && <BibliotecaExercicios onFechar={() => setBiblioteca(false)} onSelecionar={item => {
+        setExerciciosForm(lista => {
+          const novo = { nome: item.nome, catalogo_id: item.id, series: '3', repeticoes: '12', carga: '', orientacoes: '' };
+          if (alvoBiblioteca !== null) return lista.map((ex, i) => i === alvoBiblioteca ? { ...ex, nome: item.nome, catalogo_id: item.id } : ex);
+          const vazio = lista.findIndex(ex => !ex.nome.trim());
+          return vazio >= 0 ? lista.map((ex, i) => i === vazio ? novo : ex) : [...lista, novo];
+        });
+        setBiblioteca(false);
+      }}/>}
     </div>
   );
 }

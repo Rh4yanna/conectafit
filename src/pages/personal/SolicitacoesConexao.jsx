@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+/* eslint-disable react/prop-types */
+import {dias} from '../../components/personal/comum';
+import { useState, useEffect } from 'react';
 import { UserCheck, UserX, Clock, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../config/api';
 
-export default function SolicitacoesConexao() {
+export default function SolicitacoesConexao({nutri=false}) {
   const [solicitacoes, setSolicitacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(null);
-
-  // Busca o usuário logado para pegar o ID do personal
-  const usuarioLogado = JSON.parse(
-    localStorage.getItem('usuarioLogado') || localStorage.getItem('usuario') || '{}'
-  );
 
   useEffect(() => {
     carregarSolicitacoes();
@@ -40,16 +38,17 @@ export default function SolicitacoesConexao() {
 
   const responderSolicitacao = async (id, acao) => {
     try {
-      await apiFetch(`/profissional/solicitacoes/${id}`, {
+      const resposta=await apiFetch(`/profissional/solicitacoes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: acao }), // 'aceito' ou 'recusado'
       });
 
+      if(!resposta.ok){const d=await resposta.json();throw new Error(d.message);}
       // Remove a solicitação da lista após responder
       setSolicitacoes((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
-      alert(`Erro ao ${acao} solicitação.`);
+      setErro(err.message);
     }
   };
 
@@ -66,13 +65,13 @@ export default function SolicitacoesConexao() {
       <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl">
         <h2 className="text-lg font-bold text-white mb-1">Solicitações de Conexão</h2>
         <p className="text-xs text-neutral-400 mb-6">
-          Alunos solicitando seu acompanhamento como Personal Trainer
+          {nutri?'Pacientes solicitando acompanhamento nutricional':'Alunos solicitando seu acompanhamento como Personal Trainer'}
         </p>
 
         {erro && (
           <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>Servidor offline no momento. Exibindo dados de teste.</span>
+            <MensagemTemporaria as="span">{erro}</MensagemTemporaria>
           </div>
         )}
 
@@ -93,9 +92,9 @@ export default function SolicitacoesConexao() {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-white">{item.nome}</h3>
-                    <p className="text-xs text-neutral-400">{item.email}</p>
+                    <p className="text-xs text-neutral-400">{item.email}</p><p className="text-sm whitespace-pre-wrap">Objetivo informado: {item.interesse?.objetivo||'Não informado'}</p><p className="text-sm">Disponibilidade informada • Brasília</p>{item.interesse?.disponibilidade?.length?item.interesse.disponibilidade.map((d,i)=><p className="text-sm" key={i}>{dias[d.dia]} • {d.inicio} às {d.fim}</p>):<p className="text-sm">Não informada</p>}
                     <span className="text-[10px] text-neutral-500 flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3" /> {item.data}
+                      <Clock className="w-3 h-3" /> {new Date(item.criado_em).toLocaleString('pt-BR')}
                     </span>
                   </div>
                 </div>

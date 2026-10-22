@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {servidorIsolado} from '../scripts/teste-servidor-isolado.mjs';
+import {hojeEvolucao} from './evolucao.js';
+test('gestão completa: privacidade de rascunho, publicação atômica, modelos, períodos, arquivo e sessões imutáveis',async()=>{
+ const app=await servidorIsolado();try{
+ for(const [id,tipo] of [[1,'aluno'],[2,'personal'],[3,'personal']])await app.db.query(`INSERT INTO ${app.schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,'Teste',$2,'teste',$3)`,[id,`g${id}@example.invalid`,tipo]);
+ await app.db.query(`INSERT INTO ${app.schema}.conexoes_alunos(personal_id,aluno_id,status,ativo,permite_treinos) VALUES(2,1,'aceito',TRUE,TRUE),(3,1,'aceito',TRUE,TRUE)`);
+ const api=async(path,method='GET',body,user=2)=>{const r=await fetch(app.base+'/api'+path,{method,headers:{Authorization:'Bearer '+await app.token(user),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()};};
+ const base='/personal/alunos/1',ex={catalogo_id:'wger:75',demonstracao_conferida:true,nome:'Supino com halteres',series:2,repeticoes:'10',carga:'5 kg',orientacoes:'Instrução individual',descanso_segundos:60};
+ const b={titulo:'Plano',versao:0,dias_semana:[0,1,2,3,4,5,6],exercicios:[ex]};
+ let d=await api(base+'/rascunhos','POST',b);assert.equal(d.status,200,JSON.stringify(d));d=d.data;
+ assert.equal((await api('/treinos','GET',null,1)).data.length,0);
+ assert.equal((await api(base+'/rascunhos','GET',null,3)).data.length,0);
+ const modelo=await api('/personal/modelos','POST',{...b,id:456,avaliacao_id:123});assert.equal(modelo.status,201);assert.equal(modelo.data.conteudo.id,undefined);assert.equal(modelo.data.conteudo.avaliacao_id,undefined);assert.equal((await api('/personal/modelos','GET',null,3)).data.length,0);
+ const a=await api(base+'/avaliacao','PUT',{versao:0,data:hojeEvolucao(),objetivos:['Constância'],experiencia:'iniciante',disponibilidade:[],equipamentos:[],situacao_limitacoes:'nao_informado'});assert.equal(a.status,200);
+ Object.assign(b,{avaliacao_id:a.data.id,avaliacao_versao:1,rascunho_id:d.id,rascunho_versao:d.versao});
+ assert.equal((await api(base+'/fichas','POST',{...b,inicio_em:'2026-03-10',fim_em:'2026-03-01'})).status,400);
+ assert.equal((await api(base+'/fichas','POST',{...b,exercicios:[{...ex,descanso_segundos:-1}]})).status,400);
+ const publicados=await Promise.all([api(base+'/fichas','POST',b),api(base+'/fichas','POST',b)]);assert.deepEqual(publicados.map(x=>x.status).sort(),[201,409]);let f=publicados.find(x=>x.status===201).data;
+ assert.equal((await api(base+'/rascunhos')).data.length,0);assert.equal((await api('/treinos','GET',null,1)).data.length,1);
+ let sessao=(await api('/sessoes-treino','POST',{treino_id:f.id},1)).data.sessao;assert.equal(sessao.exercicios[0].prescricao.descanso_segundos,60);
+ delete b.rascunho_id;delete b.rascunho_versao;
+ let revisao=await api(base+`/fichas/${f.id}`,'PUT',{...b,versao:1,motivo:'Progressão',exercicios:[{...ex,id_exercicio:f.exercicios[0].id_exercicio,series:3,descanso_segundos:90}]});assert.equal(revisao.status,200);f=revisao.data;
+ assert.equal((await api('/sessoes-treino','GET',null,1)).data.ativa.exercicios[0].prescricao.descanso_segundos,60);
+ let arq=await api(base+`/fichas/${f.id}/arquivo`,'PATCH',{versao:2,arquivada:true,motivo:'Fim do ciclo'});assert.equal(arq.status,200);f=arq.data;
+ assert.equal((await api('/treinos','GET',null,1)).data.length,0);assert.equal((await api('/sessoes-treino/resumo','GET',null,1)).data.treinos_hoje.length,0);
+ assert.equal((await api('/sessoes-treino','POST',{treino_id:f.id},1)).status,200);
+ sessao.exercicios.forEach(e=>e.series.forEach(s=>Object.assign(s,{carga:5,repeticoes:10,concluida:true})));
+ assert.equal((await api(`/sessoes-treino/${sessao.id}`,'PUT',{versao:sessao.versao,status:'concluida',exercicios:sessao.exercicios,observacoes:'Treino realizado sem dificuldades'},1)).status,200);
+ assert.equal((await api('/sessoes-treino','POST',{treino_id:f.id},1)).status,404);
+ const h=(await api(base+`/fichas/${f.id}/versoes`)).data.revisoes;assert.equal(h.length,3);assert.equal(h[2].conteudo.exercicios[0].descanso_segundos,60);assert.equal(h[1].conteudo.exercicios[0].descanso_segundos,90);
+ assert.equal((await api(base+`/fichas/${f.id}/versoes`,'GET',null,3)).data.revisoes.length,0);
+ assert.equal((await api(base+`/fichas/${f.id}/arquivo`,'PATCH',{versao:3,arquivada:false,motivo:'Retomada'},3)).status,404);
+ arq=await api(base+`/fichas/${f.id}/arquivo`,'PATCH',{versao:3,arquivada:false,motivo:'Retomada'});assert.equal(arq.status,200);
+ revisao=await api(base+`/fichas/${f.id}`,'PUT',{...b,versao:4,motivo:'Próximo ciclo',inicio_em:'2099-01-01'});assert.equal(revisao.status,200);
+ assert.equal((await api('/sessoes-treino','POST',{treino_id:f.id},1)).status,404);assert.equal((await api('/sessoes-treino/resumo','GET',null,1)).data.treinos_hoje.length,0);
+ assert.equal((await api('/sessoes-treino','GET',null,1)).data.historico[0].exercicios[0].prescricao.descanso_segundos,60);
+ assert.equal((await api(`/treinos/${f.id}`,'DELETE',null,1)).status,404);
+ }finally{await app.fechar();}
+});

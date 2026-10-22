@@ -15,8 +15,8 @@ for (const [nome, caminho, esperado] of casos) {
     if (!ok) falhas++;
   } catch (error) { console.log(`❌ ${nome}: servidor indisponível (${error.message})`); falhas++; }
 }
-const login = await fetch(`${base}/api/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: [], senha: {}, tipo_usuario: 123 }) });
+const login = await fetch(`${base}/api/login`, { method: "POST", headers: { "content-type": "application/json", "X-ConectaFit-Request": "1" }, body: JSON.stringify({ email: [], senha: {}, tipo_usuario: 123 }) });
 console.log(`${login.status === 400 ? "✅" : "❌"} login malformado: HTTP ${login.status} (esperado 400)`);
 if (login.status !== 400) falhas++;
 if (falhas) process.exitCode = 1;
-else console.log("\n🛡️ Verificações básicas de segurança aprovadas.");
+else console.log("\n Verificações básicas de segurança aprovadas.");

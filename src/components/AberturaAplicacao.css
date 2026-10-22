@@ -1,0 +1,20 @@
+/* Original PNG background: #000000. SVG clips isolate forearms for a small rotation. */
+.abertura-app{position:fixed;inset:0;z-index:9999;background:#000;color:#fff;display:grid;place-items:center;padding:24px;overflow:auto;opacity:1;transition:opacity 250ms ease-out;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.abertura-app:focus{outline:none}
+.abertura-app-saindo{opacity:0;pointer-events:none}
+.abertura-composicao{width:min(420px,100%);text-align:center;margin:auto}
+.abertura-composicao h1{font-size:clamp(32px,6vw,46px);font-weight:850;letter-spacing:-1.5px;line-height:1.2;margin:0 0 8px}
+.abertura-composicao h1 span{color:#00aeff}
+.abertura-composicao h1{animation:abertura-marca 1.5s ease-in-out 2}
+.abertura-personagens{display:block;width:min(100%,48vh);height:auto;max-height:48vh;aspect-ratio:1;margin:0 auto 16px;overflow:visible}
+.abertura-braco{transform-box:view-box;animation-duration:1.5s;animation-timing-function:ease-in-out;animation-iteration-count:2}
+.abertura-braco-esquerdo{transform-origin:420px 1080px;animation-name:abertura-braco-esquerdo}
+.abertura-braco-direito{transform-origin:1580px 1080px;animation-name:abertura-braco-direito}
+@keyframes abertura-braco-esquerdo{0%,100%{transform:rotate(0)}50%{transform:rotate(-3deg)}}
+@keyframes abertura-braco-direito{0%,100%{transform:rotate(0)}50%{transform:rotate(3deg)}}
+@keyframes abertura-marca{0%,100%{text-shadow:0 0 0 transparent}50%{text-shadow:0 0 18px #00aeff70}}
+.abertura-composicao p{font-size:14px;color:#b5c5d1;line-height:1.6;margin:20px 0 0}
+.abertura-progresso{height:3px;width:104px;margin:auto;overflow:hidden;border-radius:4px;background:#182a35}
+.abertura-progresso span{display:block;width:45%;height:100%;border-radius:4px;background:#00aeff;animation:abertura-carregando 1.4s ease-in-out infinite}
+@keyframes abertura-carregando{0%,100%{transform:translateX(-100%)}50%{transform:translateX(230%)}}
+@media(prefers-reduced-motion:reduce){.abertura-app{transition-duration:100ms}.abertura-braco,.abertura-composicao h1{animation:none}.abertura-progresso span{animation:none;width:100%}}

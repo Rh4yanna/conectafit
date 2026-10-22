@@ -1,0 +1,27 @@
+# Exemplo: requer confirmação de custos e preenchimento de segredos no painel.
+services:
+  - type: web
+    name: conectafit-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: BIND_HOST
+        value: 0.0.0.0
+      - key: DB_SSL
+        value: "true"
+      - key: IMAGE_STORAGE
+        value: database
+      - key: SERVE_FRONTEND
+        value: "true"
+      - key: FRONTEND_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false

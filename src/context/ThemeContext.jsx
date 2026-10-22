@@ -1,39 +1,28 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-
-const ThemeContext = createContext();
-
-export function ThemeProvider({ children }) {
-  // 1. Busca o tema salvo no localStorage (ou padrão 'dark')
-  const [tema, setTema] = useState(() => {
-    return localStorage.getItem("tema_conectafit") || "dark";
+import PropTypes from 'prop-types';
+import { createContext, useContext, useEffect, useState } from 'react';
+const ThemeContext = createContext(null);
+export function ThemeProvider({children}) {
+  const [tema,setTema]=useState(()=>{
+    const salvo=localStorage.getItem('tema_conectafit');
+    if(['dark','light'].includes(salvo))return salvo;
+    return localStorage.getItem('temaEscuro')==='false'?'light':'dark';
   });
-
-  // 2. Aplica ou remove a classe na tag <html> sempre que o tema mudar
-  useEffect(() => {
-    const root = document.documentElement;
-    if (tema === "dark") {
-      root.classList.add("dark");
-      root.classList.remove("light");
-    } else {
-      root.classList.add("light");
-      root.classList.remove("dark");
-    }
-    // Salva a escolha no navegador para não perder no F5 ou navegação
-    localStorage.setItem("tema_conectafit", tema);
-  }, [tema]);
-
-  // Função para alternar o tema
-  const alternarTema = () => {
-    setTema((prev) => (prev === "dark" ? "light" : "dark"));
-  };
-
-  return (
-    <ThemeContext.Provider value={{ tema, alternarTema }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  useEffect(()=>{
+    document.documentElement.classList.toggle('dark',tema==='dark');
+    document.documentElement.classList.toggle('light',tema==='light');
+    document.documentElement.classList.toggle('tema-claro',tema==='light');
+    document.documentElement.style.colorScheme=tema;
+    localStorage.setItem('tema_conectafit',tema);
+  },[tema]);
+  useEffect(()=>{
+    const sincronizar=e=>{if(e.key==='tema_conectafit'&&['dark','light'].includes(e.newValue))setTema(e.newValue);};
+    window.addEventListener('storage',sincronizar);
+    return ()=>window.removeEventListener('storage',sincronizar);
+  },[]);
+  const setTemaEscuro=valor=>setTema(anterior=>(typeof valor==='function'?valor(anterior==='dark'):valor)?'dark':'light');
+  const alternarTema=()=>setTema(anterior=>anterior==='dark'?'light':'dark');
+  return <ThemeContext.Provider value={{tema,temaEscuro:tema==='dark',setTemaEscuro,alternarTema}}>{children}</ThemeContext.Provider>;
 }
+export function useTheme(){return useContext(ThemeContext);}
 
-export function useTheme() {
-  return useContext(ThemeContext);
-}
+ThemeProvider.propTypes = {children: PropTypes.node};

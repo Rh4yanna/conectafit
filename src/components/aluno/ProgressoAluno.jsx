@@ -1,0 +1,5 @@
+/* eslint-disable react/prop-types */
+export default function ProgressoAluno({valor,total,label}) {
+ const porcentagem=Number(total)>0?Math.min(100,Math.max(0,Number(valor)/Number(total)*100)):0;
+ return <div className="my-3"><svg aria-hidden="true" className="float-right ml-3 text-sky-500 w-10 h-10" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.15"/><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="3" pathLength="100" strokeDasharray={`${porcentagem} 100`} transform="rotate(-90 20 20)"/></svg><div className="flex justify-between text-xs mb-2"><span>{label}</span><span>{Number(total)>0?`${Math.round(porcentagem)}%`:'Sem referência'}</span></div><div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(porcentagem)} className="h-2 overflow-hidden rounded-full bg-neutral-500/20"><div className="h-full rounded-full bg-sky-500" style={{width:`${porcentagem}%`}}/></div></div>;
+}

@@ -1,0 +1,48 @@
+import MensagemTemporaria from '../MensagemTemporaria';
+/* eslint-disable react/prop-types */
+import { useEffect,useState } from 'react';
+import { useTheme } from '../../context/ThemeContext';
+import ModalAlimentacao from './ModalAlimentacao';
+import { alimentacao,hoje,dataBR,rotulosRegistro } from './comum';
+export function FormRegistroAlimentar({registro,onClose,onSalvo}){
+  const {temaEscuro}=useTheme();const [form,setForm]=useState(()=>({chave_cliente:crypto.randomUUID(),data:hoje(),nome:'',status:'realizada',observacoes:'',dificuldades:'',fome:'',saciedade:'',...registro,horario:registro?.horario?.slice(0,5)||''}));
+  const [ocupado,setOcupado]=useState(false),[fotoOcupada,setFotoOcupada]=useState(false),[erro,setErro]=useState('');
+  const campo=`block w-full mt-1 p-3 border rounded-lg ${temaEscuro?'bg-neutral-950 border-neutral-600':'bg-white border-gray-400'}`;
+  const alterar=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const foto=async arquivo=>{
+    if(!arquivo)return;setErro('');setFotoOcupada(true);let bitmap;
+    try{
+      if(!['image/jpeg','image/png','image/webp'].includes(arquivo.type)||arquivo.size>10*1024*1024)throw new Error('Escolha JPEG, PNG ou WebP de até 10 MB.');
+      bitmap=await createImageBitmap(arquivo);if(bitmap.width*bitmap.height>40000000)throw new Error('A imagem tem resolução muito alta. Escolha uma menor.');
+      const escala=Math.min(1,1200/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*escala);canvas.height=Math.round(bitmap.height*escala);canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+      const dados=canvas.toDataURL('image/jpeg',0.8);if(dados.length>2100000)throw new Error('A imagem ainda está muito grande. Escolha uma menor.');alterar('foto',dados);
+    }catch(e){setErro(e.message||'Não foi possível preparar a imagem.');}finally{bitmap?.close();setFotoOcupada(false);}
+  };
+  const salvar=async e=>{e.preventDefault();setOcupado(true);setErro('');try{await alimentacao(`/diario${registro?.id?`/${registro.id}`:''}`,registro?.id?'PUT':'POST',form);onSalvo();}catch(e){setErro(e.message);}finally{setOcupado(false);}};
+  return <ModalAlimentacao titulo={registro?.id?'Editar refeição alimentar':'Registrar refeição'} onClose={onClose} ocupado={ocupado||fotoOcupada}><p className="text-sm mb-4">Diário privado. Fotos e relatos são opcionais.</p>{form.contexto&&<p className="border border-sky-500/40 rounded-lg p-3 mb-3">{form.contexto.titulo} · versão {form.contexto.versao} · {form.contexto.refeicao.nome}</p>}{erro&&<MensagemTemporaria as="p" role="alert" className="mb-3 text-red-500">{erro}</MensagemTemporaria>}
+    <form onSubmit={salvar}><fieldset disabled={ocupado||fotoOcupada} className="space-y-4"><label className="block">Refeição<input required maxLength={100} className={campo} value={form.nome} onChange={e=>alterar('nome',e.target.value)}/></label><div className="grid sm:grid-cols-2 gap-3"><label>Data<input required type="date" min="2000-01-01" max={hoje()} className={campo} value={form.data} onChange={e=>alterar('data',e.target.value)}/></label><label>Horário realizado (opcional)<input type="time" className={campo} value={form.horario} onChange={e=>alterar('horario',e.target.value)}/></label></div>
+      <label className="block">Como foi a refeição?<select className={campo} value={form.status} onChange={e=>alterar('status',e.target.value)}>{Object.entries(rotulosRegistro).map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>
+      <details className="rounded-xl border border-neutral-500/30 p-3"><summary className="cursor-pointer font-semibold">Adicionar foto ou detalhes</summary><div className="space-y-4 mt-4"><label className="block">O que você comeu?<textarea maxLength={2000} className={campo} value={form.observacoes} onChange={e=>alterar('observacoes',e.target.value)} placeholder="Alimentos, quantidades ou substituições."/></label>
+      <label className="block">Dificuldades (opcional)<textarea maxLength={2000} className={campo} value={form.dificuldades} onChange={e=>alterar('dificuldades',e.target.value)} placeholder="Ex.: horário, preparo, disponibilidade de alimentos."/></label>
+      <div className="grid sm:grid-cols-2 gap-3">{[['fome','Fome antes de comer','Sem fome','Muita fome'],['saciedade','Saciedade depois de comer','Nada satisfeito','Muito satisfeito']].map(([k,n,zero,dez])=><label key={k}>{n} (opcional)<select className={campo} value={form[k]??''} onChange={e=>alterar(k,e.target.value)}><option value="">Prefiro não informar</option>{Array.from({length:11},(_,i)=><option key={i} value={i}>{i}{i===0?` · ${zero}`:i===10?` · ${dez}`:''}</option>)}</select></label>)}</div>
+      <label className="block">Foto da refeição (opcional)<input className="block w-full mt-2" type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>foto(e.target.files[0])}/></label>
+      {form.foto&&<img src={form.foto} alt="Prévia da foto da refeição" className="rounded-xl max-h-64 max-w-full"/>}{(form.foto||(form.tem_foto&&form.foto!==null))&&<button type="button" className="acao-secundaria" onClick={()=>alterar('foto',null)}>Remover foto</button>}
+      </div></details><button className="w-full rounded-xl bg-sky-600 text-white font-bold p-3">{ocupado?'Salvando...':'Salvar refeição'}</button>
+    </fieldset>{fotoOcupada&&<p role="status">Preparando foto...</p>}</form>
+  </ModalAlimentacao>;
+}
+function FotoRegistro({id}){
+  const [foto,setFoto]=useState(null),[erro,setErro]=useState(''),[loading,setLoading]=useState(false);
+  const abrir=async()=>{setLoading(true);setErro('');try{setFoto((await alimentacao(`/diario/${id}/foto`)).foto);}catch(e){setErro(e.message);}finally{setLoading(false);}};
+  return <div>{foto?<><img src={foto} alt="Foto da refeição registrada" className="max-h-64 max-w-full rounded-lg"/><button className="acao-secundaria text-sm" onClick={()=>setFoto(null)}>Ocultar foto</button></>:<button disabled={loading} className="acao-secundaria text-sm" onClick={abrir}>{loading?'Carregando foto...':'Ver foto privada'}</button>}{erro&&<MensagemTemporaria as="p" role="alert">{erro}</MensagemTemporaria>}</div>;
+}
+export default function DiarioAlimentar({atualizacao,onEditar,onNovo}){
+  const [dados,setDados]=useState(null),[offset,setOffset]=useState(0),[tentativa,setTentativa]=useState(0),[erro,setErro]=useState(''),[loading,setLoading]=useState(true),[removendo,setRemovendo]=useState(false),[excluir,setExcluir]=useState(null);
+  useEffect(()=>{let ativo=true;setLoading(true);setErro('');alimentacao(`/diario?offset=${offset}`).then(d=>{if(ativo)setDados(d);}).catch(e=>{if(ativo)setErro(e.message);}).finally(()=>{if(ativo)setLoading(false);});return()=>{ativo=false;};},[atualizacao,offset,tentativa]);
+  const remover=async()=>{setRemovendo(true);try{await alimentacao(`/diario/${excluir.id}`,'DELETE',{versao:excluir.versao});setExcluir(null);setTentativa(n=>n+1);}catch(e){setErro(e.message);setExcluir(null);}finally{setRemovendo(false);}};
+  return <section aria-label="Diário alimentar" className="space-y-4"><header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-bold">Diário alimentar</h2></div><button className="rounded-xl bg-sky-600 text-white px-4 py-3" onClick={onNovo}>Registrar refeição</button></header>
+    {erro&&<MensagemTemporaria as="p" role="alert">{erro} <button className="acao-secundaria" onClick={()=>setTentativa(n=>n+1)}>Tentar novamente</button></MensagemTemporaria>}
+    {loading?<p role="status">Carregando diário...</p>:dados&&<><p>{dados.realizadas_semana} refeições realizadas nesta semana.</p>{!dados.registros.length&&<p>Nenhum registro nesta página.</p>}{dados.registros.map(r=><article key={r.id} className="border border-neutral-500/30 rounded-xl p-4 space-y-3"><header className="flex flex-wrap justify-between gap-2"><h3 className="font-bold">{r.nome}</h3><span>{dataBR(r.data)} {r.horario?.slice(0,5)} · {rotulosRegistro[r.status]}</span></header>{r.contexto?<details><summary className="cursor-pointer text-sm">{r.contexto.titulo} · versão {r.contexto.versao} · consultar refeição original</summary><p className="text-sm whitespace-pre-wrap mt-2">{r.contexto.refeicao.detalhes||r.contexto.refeicao.alimentos?.map(a=>`${a.nome}: ${a.quantidade??a.quantidade_gramas} ${a.unidade||'g'}`).join(', ')}</p></details>:<p className="text-sm">Refeição livre</p>}{r.observacoes&&<p className="whitespace-pre-wrap">{r.observacoes}</p>}{r.dificuldades&&<p className="whitespace-pre-wrap">Dificuldades: {r.dificuldades}</p>}{(r.fome!=null||r.saciedade!=null)&&<p className="text-sm">Fome: {r.fome??'—'} · Saciedade: {r.saciedade??'—'}</p>}{r.tem_foto&&<FotoRegistro key={`${r.id}:${r.versao}`} id={r.id}/>}<div className="flex gap-4"><button className="acao-secundaria" onClick={()=>onEditar(r)}>Editar refeição</button><button className="acao-secundaria text-red-500" onClick={()=>setExcluir(r)}>Excluir refeição</button></div></article>)}<div className="flex justify-between"><button disabled={!offset} className="acao-secundaria disabled:opacity-40" onClick={()=>setOffset(n=>Math.max(0,n-20))}>Mais recentes</button><button disabled={!dados.tem_mais} className="acao-secundaria disabled:opacity-40" onClick={()=>setOffset(n=>n+20)}>Mais antigos</button></div></>}
+    {excluir&&<ModalAlimentacao titulo="Excluir registro alimentar?" onClose={()=>setExcluir(null)} ocupado={removendo}><p>O registro de {excluir.nome}, suas observações e sua foto serão excluídos. A contagem semanal será recalculada.</p><button className="bg-red-600 text-white rounded-lg p-3 mt-4" disabled={removendo} onClick={remover}>{removendo?'Excluindo...':'Confirmar exclusão'}</button></ModalAlimentacao>}
+  </section>;
+}

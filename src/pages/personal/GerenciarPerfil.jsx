@@ -1,26 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  User, 
-  MapPin, 
-  Phone, 
-  MessageCircle, 
-  GraduationCap, 
-  FileText, 
-  DollarSign, 
-  Save, 
+import MensagemTemporaria from '../../components/MensagemTemporaria';
+import OfertaServico from '../../components/servicos/OfertaServico';
+import LocalAtendimento from '../../components/LocalAtendimento';
+import { useState, useEffect } from 'react';
+import {
+  User,
+
+  Phone,
+  MessageCircle,
+  GraduationCap,
+  FileText,
+  DollarSign,
+  Save,
   ExternalLink,
   Camera,
   Share2,
   Upload
 } from 'lucide-react';
-import { API_URL } from '../../config/api';
+import { apiFetch } from '../../config/api';
 
 export default function GerenciarPerfil() {
   const getUsuarioSalvo = () => {
     try {
       const item = localStorage.getItem("usuario") || localStorage.getItem("usuarioLogado");
       return item ? JSON.parse(item) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -44,22 +47,24 @@ export default function GerenciarPerfil() {
   });
 
   const [carregando, setCarregando] = useState(false);
+  const [erro,setErro]=useState(''),[sucesso,setSucesso]=useState(''),[pronto,setPronto]=useState(false),[tentativa,setTentativa]=useState(0);
 
   useEffect(() => {
     if (!usuarioId) return;
 
-    fetch(`${API_URL}/personal/perfil/${usuarioId}`)
+    apiFetch(`/personal/perfil/${usuarioId}`)
       .then(res => {
         if (!res.ok) throw new Error('Erro na requisição');
         return res.json();
       })
-      .then(data => { 
+      .then(data => {
         if (data && typeof data === 'object') {
           setForm(prev => ({ ...prev, ...data }));
-        } 
+        }
+        setPronto(true);setErro('');
       })
-      .catch(err => console.error("Erro ao carregar perfil:", err));
-  }, [usuarioId]);
+      .catch(err => setErro(err.message));
+  }, [usuarioId,tentativa]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -71,8 +76,8 @@ export default function GerenciarPerfil() {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("A imagem selecionada deve ter menos de 5MB.");
+    if (file.size > 600 * 1024) {
+      setErro("Selecione uma imagem de até 600 KB.");
       return;
     }
 
@@ -85,23 +90,24 @@ export default function GerenciarPerfil() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setCarregando(true);
+    if(carregando||!pronto)return;
+    setCarregando(true);setErro('');setSucesso('');
 
     try {
-      const response = await fetch(`${API_URL}/personal/perfil`, {
+      const response = await apiFetch('/personal/perfil', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, usuario_id: usuarioId })
       });
 
       if (response.ok) {
-        alert('Perfil atualizado com sucesso!');
+        setSucesso('Perfil atualizado com sucesso.');
       } else {
-        alert('Erro ao atualizar perfil no servidor.');
+        setErro((await response.json()).message||'Não foi possível atualizar o perfil.');
       }
     } catch (err) {
       console.error("Erro ao salvar perfil:", err);
-      alert('Erro ao salvar o perfil. Verifique a conexão.');
+      setErro(err.message);
     } finally {
       setCarregando(false);
     }
@@ -109,7 +115,8 @@ export default function GerenciarPerfil() {
 
   return (
     <div className="w-full max-w-none px-5 lg:px-10 py-6 text-white font-sans">
-      
+
+      {erro&&<MensagemTemporaria as="p" role="alert" className="text-red-400">{erro}{!pronto&&<button className="acao-secundaria ml-2" onClick={()=>setTentativa(n=>n+1)}>Tentar novamente</button>}</MensagemTemporaria>}{sucesso&&<MensagemTemporaria as="p" role="status">{sucesso}</MensagemTemporaria>}{!pronto&&!erro&&<p role="status">Carregando perfil...</p>}
       {/* CABEÇALHO */}
       <div className="mb-8 border-b border-neutral-800 pb-4">
         <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
@@ -120,8 +127,9 @@ export default function GerenciarPerfil() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        
+      <form id="perfil-personal" aria-label="Perfil do personal" onSubmit={handleSubmit}/>
+      <fieldset disabled={!pronto||carregando} className="space-y-6">
+
         {/* SEÇÃO 1: DADOS BÁSICOS & FOTO */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2 border-b border-neutral-800 pb-3">
@@ -140,53 +148,39 @@ export default function GerenciarPerfil() {
 
             <div className="flex-1 text-center sm:text-left">
               <label className="text-xs font-bold text-neutral-400 block mb-1">Foto de Perfil</label>
-              <label 
-                htmlFor="upload-foto" 
+              <label
+                htmlFor="upload-foto"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-700 rounded-xl text-xs font-bold cursor-pointer transition-colors"
               >
                 <Upload className="w-4 h-4 text-[#00AEFF]" />
                 Escolher Foto da Galeria
               </label>
-              <input 
+              <input form="perfil-personal"
                 id="upload-foto"
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageUpload} 
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
                 className="hidden"
               />
-              <p className="text-[10px] text-neutral-500 mt-1">Formatos aceitos: JPG, PNG, WEBP (Max: 5MB)</p>
+              <p className="text-[10px] text-neutral-500 mt-1">Formatos aceitos: JPG, PNG, WEBP (Max: 600 KB)</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Nome Completo</label>
-              <input 
-                type="text" 
-                name="nome" 
-                placeholder="Seu nome exibido no app" 
-                value={form.nome || ''} 
-                onChange={handleChange} 
-                required 
+              <input form="perfil-personal"
+                type="text"
+                name="nome" aria-label="Nome completo"
+                placeholder="Seu nome exibido no app"
+                value={form.nome || ''}
+                onChange={handleChange}
+                required
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-neutral-400 mb-1">Cidade / Região de Atuação</label>
-              <div className="relative">
-                <MapPin className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                  type="text" 
-                  name="cidade" 
-                  placeholder="Ex: São Paulo - SP" 
-                  value={form.cidade || ''} 
-                  onChange={handleChange} 
-                  required 
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
-                />
-              </div>
-            </div>
+
           </div>
         </div>
 
@@ -197,14 +191,15 @@ export default function GerenciarPerfil() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="text-sm">E-mail de contato<input form="perfil-personal" type="email" name="email_contato" value={form.email_contato||''} onChange={handleChange} className="block w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3"/></label>
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Telefone Principal</label>
-              <input 
-                type="text" 
-                name="contato" 
-                placeholder="(00) 00000-0000" 
-                value={form.contato || ''} 
-                onChange={handleChange} 
+              <input form="perfil-personal"
+                type="text"
+                name="contato" aria-label="Telefone principal"
+                placeholder="(00) 00000-0000"
+                value={form.contato || ''}
+                onChange={handleChange}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
@@ -212,13 +207,13 @@ export default function GerenciarPerfil() {
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">WhatsApp (Apenas Números)</label>
               <div className="relative">
-                <MessageCircle className="w-4 h-4 text-emerald-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                  type="text" 
-                  name="whatsapp" 
-                  placeholder="5511999999999" 
-                  value={form.whatsapp || ''} 
-                  onChange={handleChange} 
+                <MessageCircle className="w-4 h-4 text-sky-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input form="perfil-personal"
+                  type="text"
+                  name="whatsapp" aria-label="WhatsApp"
+                  placeholder="5511999999999"
+                  value={form.whatsapp || ''}
+                  onChange={handleChange}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
                 />
               </div>
@@ -228,12 +223,12 @@ export default function GerenciarPerfil() {
               <label className="block text-xs font-bold text-neutral-400 mb-1">Instagram (Sem @)</label>
               <div className="relative">
                 <Share2 className="w-4 h-4 text-pink-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                  type="text" 
-                  name="instagram" 
-                  placeholder="seu.usuario" 
-                  value={form.instagram || ''} 
-                  onChange={handleChange} 
+                <input form="perfil-personal"
+                  type="text"
+                  name="instagram" aria-label="Instagram"
+                  placeholder="seu.usuario"
+                  value={form.instagram || ''}
+                  onChange={handleChange}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
                 />
               </div>
@@ -243,19 +238,19 @@ export default function GerenciarPerfil() {
           {(form.whatsapp || form.instagram) && (
             <div className="flex flex-wrap gap-3 pt-2">
               {form.whatsapp && (
-                <a 
-                  href={`https://wa.me/${String(form.whatsapp).replace(/\D/g, '')}`} 
-                  target="_blank" 
+                <a
+                  href={`https://wa.me/${String(form.whatsapp).replace(/\D/g, '')}`}
+                  target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/20 transition-all font-bold"
+                  className="flex items-center gap-2 text-xs bg-sky-500/10 border border-sky-500/20 text-sky-400 px-3 py-1.5 rounded-lg hover:bg-sky-500/20 transition-all font-bold"
                 >
                   <MessageCircle className="w-3.5 h-3.5" /> Testar WhatsApp <ExternalLink className="w-3 h-3" />
                 </a>
               )}
               {form.instagram && (
-                <a 
-                  href={`https://instagram.com/${String(form.instagram).replace('@', '')}`} 
-                  target="_blank" 
+                <a
+                  href={`https://instagram.com/${String(form.instagram).replace('@', '')}`}
+                  target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 text-xs bg-pink-500/10 border border-pink-500/20 text-pink-400 px-3 py-1.5 rounded-lg hover:bg-pink-500/20 transition-all font-bold"
                 >
@@ -266,6 +261,7 @@ export default function GerenciarPerfil() {
           )}
         </div>
 
+        <LocalAtendimento cidadeInicial={form.cidade} onEnderecoSalvo={endereco=>setForm(prev=>({...prev,cidade:endereco.cidade}))}/>
         {/* SEÇÃO 3: SOBRE & FORMAÇÃO */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2 border-b border-neutral-800 pb-3">
@@ -275,12 +271,12 @@ export default function GerenciarPerfil() {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Formação / Certificações</label>
-              <input 
-                type="text" 
-                name="formacao" 
-                placeholder="Ex: Bacharel em Educação Física" 
-                value={form.formacao || ''} 
-                onChange={handleChange} 
+              <input form="perfil-personal"
+                type="text"
+                name="formacao" aria-label="Formação"
+                placeholder="Ex: Bacharel em Educação Física"
+                value={form.formacao || ''}
+                onChange={handleChange}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
@@ -289,12 +285,12 @@ export default function GerenciarPerfil() {
               <label className="block text-xs font-bold text-neutral-400 mb-1">Sobre Mim (Biografia)</label>
               <div className="relative">
                 <FileText className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-                <textarea 
-                  name="sobre_mim" 
+                <textarea form="perfil-personal"
+                  name="sobre_mim" aria-label="Sobre mim"
                   rows="4"
-                  placeholder="Escreva sobre sua metodologia de trabalho..." 
-                  value={form.sobre_mim || ''} 
-                  onChange={handleChange} 
+                  placeholder="Escreva sobre sua metodologia de trabalho..."
+                  value={form.sobre_mim || ''}
+                  onChange={handleChange}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
                 />
               </div>
@@ -303,6 +299,7 @@ export default function GerenciarPerfil() {
         </div>
 
         {/* SEÇÃO 4: PLANOS E VALORES */}
+        <OfertaServico/>
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2 border-b border-neutral-800 pb-3">
             <DollarSign className="w-4 h-4 text-[#00AEFF]" /> Valores dos Planos (R$)
@@ -311,68 +308,68 @@ export default function GerenciarPerfil() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Diária</label>
-              <input 
-                type="number" 
-                step="0.01" 
-                name="preco_diaria" 
-                placeholder="R$ 0,00" 
-                value={form.preco_diaria || ''} 
-                onChange={handleChange} 
+              <input form="perfil-personal"
+                type="number"
+                step="0.01"
+                name="preco_diaria" aria-label="Diária (R$)"
+                placeholder="R$ 0,00"
+                value={form.preco_diaria || ''}
+                onChange={handleChange}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Semanal</label>
-              <input 
-                type="number" 
-                step="0.01" 
-                name="preco_semanal" 
-                placeholder="R$ 0,00" 
-                value={form.preco_semanal || ''} 
-                onChange={handleChange} 
+              <input form="perfil-personal"
+                type="number"
+                step="0.01"
+                name="preco_semanal" aria-label="Semanal (R$)"
+                placeholder="R$ 0,00"
+                value={form.preco_semanal || ''}
+                onChange={handleChange}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Mensal</label>
-              <input 
-                type="number" 
-                step="0.01" 
-                name="preco_mensal" 
-                placeholder="R$ 0,00" 
-                value={form.preco_mensal || ''} 
-                onChange={handleChange} 
+              <input form="perfil-personal"
+                type="number"
+                step="0.01"
+                name="preco_mensal" aria-label="Mensal (R$)"
+                placeholder="R$ 0,00"
+                value={form.preco_mensal || ''}
+                onChange={handleChange}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-neutral-400 mb-1">Anual</label>
-              <input 
-                type="number" 
-                step="0.01" 
-                name="preco_anual" 
-                placeholder="R$ 0,00" 
-                value={form.preco_anual || ''} 
-                onChange={handleChange} 
+              <input form="perfil-personal"
+                type="number"
+                step="0.01"
+                name="preco_anual" aria-label="Anual (R$)"
+                placeholder="R$ 0,00"
+                value={form.preco_anual || ''}
+                onChange={handleChange}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#00AEFF] transition-colors"
               />
             </div>
           </div>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={carregando}
-          className="w-full py-3.5 bg-[#00AEFF] hover:bg-blue-600 text-black font-extrabold rounded-xl transition-all shadow-lg shadow-[#00AEFF]/20 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer"
+        <button form="perfil-personal"
+          type="submit"
+          disabled={carregando||!pronto}
+          className="w-full py-3.5 bg-[#00AEFF] hover:bg-sky-600 text-black font-extrabold rounded-xl transition-all shadow-lg shadow-[#00AEFF]/20 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer"
         >
           <Save className="w-5 h-5" />
           {carregando ? 'Salvando Alterações...' : 'Salvar Perfil'}
         </button>
 
-      </form>
+      </fieldset>
     </div>
   );
 }

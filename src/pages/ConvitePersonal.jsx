@@ -1,0 +1,13 @@
+import MensagemTemporaria from '../components/MensagemTemporaria';
+import { useTelaInicialPronta } from '../components/AberturaAplicacao';
+import {useEffect,useState} from 'react';
+import {Link,useParams} from 'react-router-dom';
+import {apiFetch} from '../config/api';
+import InteresseConexao from '../components/servicos/InteresseConexao';
+export default function ConvitePersonal(){const {token}=useParams(),[dados,setDados]=useState(null),[erro,setErro]=useState(''),[mensagem,setMensagem]=useState(''),[ocupado,setOcupado]=useState(false),[interesse,setInteresse]=useState({objetivo:'',disponibilidade:[]});let usuario;try{usuario=JSON.parse(localStorage.getItem('usuario')||localStorage.getItem('usuarioLogado')||'null');}catch{usuario=null;}
+ useEffect(()=>{let ativo=true;apiFetch(`/convites/${token}`).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.message);if(ativo)setDados(d);}).catch(e=>{if(ativo)setErro(e.message);});return()=>{ativo=false;};},[token]);
+ useTelaInicialPronta(!!dados || !!erro);
+ const enviar=async()=>{setOcupado(true);setErro('');try{const r=await apiFetch(`/gestao/convites/${token}/aceitar`,{method:'POST',body:JSON.stringify({interesse})}),d=await r.json();if(!r.ok)throw new Error(d.message);setMensagem(d.message);sessionStorage.removeItem('convitePersonal');}catch(e){setErro(e.message);}finally{setOcupado(false);}};
+ const guardar=()=>sessionStorage.setItem('convitePersonal',token);
+ return <main className="max-w-2xl mx-auto my-10 p-6 space-y-5 border rounded-2xl"><h1 className="text-2xl font-bold">Convite para acompanhamento</h1>{erro&&<MensagemTemporaria as="p" role="alert">{erro}</MensagemTemporaria>}{dados&&<><h2 className="text-xl">{dados.tipo_usuario==='nutri'?'Nutricionista':'Personal'}: {dados.nome}</h2><p>Válido até {new Date(dados.expira_em).toLocaleString('pt-BR')}. O convite envia uma solicitação; o profissional precisa aceitá-la. Você decide depois quais dados compartilhar.</p>{mensagem?<><MensagemTemporaria as="p" role="status">{mensagem}</MensagemTemporaria><Link className="underline" to="/aluno/conexoes">Consultar minhas conexões</Link></>:usuario?.tipo_usuario==='aluno'?<><InteresseConexao valor={interesse} setValor={setInteresse}/><button disabled={ocupado} className="rounded-xl bg-sky-600 text-white p-3" onClick={enviar}>{ocupado?'Enviando...':'Solicitar conexão pelo convite'}</button></>:<><p>Entre com uma conta de aluno para continuar.</p><Link className="underline mr-4" onClick={guardar} to="/login">Entrar</Link><Link className="underline" onClick={guardar} to="/cadastro">Criar conta</Link></>}</>}{!dados&&!erro&&<p>Carregando convite...</p>}</main>;
+}

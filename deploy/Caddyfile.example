@@ -1,0 +1,28 @@
+# Modelo para um servidor Linux com site e API na mesma origem.
+# Validar com caddy validate antes de ativar. Nao foi publicado por este projeto.
+{$DOMAIN} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer
+        Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https://wger.de; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+        -Server
+    }
+    @privado path /.env* /.git* /server/* /scripts/* /node_modules/*
+    respond @privado 404
+    handle /api/* {
+        request_body {
+            max_size 16MB
+        }
+        reverse_proxy 127.0.0.1:3000
+    }
+    handle {
+        root * /srv/conectafit/dist
+        try_files {path} /index.html
+        header Cache-Control "no-cache"
+        file_server
+    }
+}

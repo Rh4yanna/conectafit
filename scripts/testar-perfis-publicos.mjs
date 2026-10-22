@@ -1,0 +1,34 @@
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {servidorIsolado} from './teste-servidor-isolado.mjs';
+import {linkInstagram,linkWhatsApp} from '../src/utils/contatosPublicos.js';
+const app=await servidorIsolado();let browser;
+try {
+  for(const [id,tipo]of [[1,'aluno'],[2,'personal'],[3,'nutri'],[4,'academia']])await app.db.query(`INSERT INTO ${app.schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,$2,$3,'teste',$4)`,[id,tipo,`publico-${id}@example.invalid`,tipo]);
+  const tokens=await Promise.all([1,2,3,4].map(id=>app.token(id)));
+  const api=async(path,body,id)=>{const r=await fetch(app.base+'/api'+path,{method:'POST',headers:{Authorization:`Bearer ${tokens[id-1]}`,'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();assert.ok(r.ok,JSON.stringify(d));return d;};
+  const foto='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6vxkAAAAASUVORK5CYII=';
+  await api('/personal/perfil',{nome:'Personal Visual',foto_perfil:foto,cidade:'Curitiba',whatsapp:'(41) 99999-1234',instagram:'@personal.visual',formacao:'Educação Física',sobre_mim:'Acompanhamento individual.'},2);
+  await api('/academia/perfil',{nome:'Academia Visual',cidade:'Curitiba',endereco:'Rua Central, 100',whatsapp:'5541999995678',instagram:'https://www.instagram.com/academia.visual/',fotos:[foto],bio:'Academia com acompanhamento.'},4);
+  await app.db.query(`INSERT INTO ${app.schema}.ofertas_servicos(usuario_id,especialidades) VALUES(2,'["Musculação"]')`);
+  await app.db.query(`INSERT INTO ${app.schema}.estrutura_academia(academia_id,ambientes,equipamentos,horarios) VALUES(4,'Sala de musculação e estúdio','Halteres e aparelhos','Segunda a sábado')`);
+  assert.equal(linkInstagram('javascript:alert(1)'),null);assert.equal(linkInstagram('https://instagram.com.evil.example/perfil'),null);assert.equal(linkWhatsApp('https://evil.example/5541999991234'),null);
+  browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:390,height:844},permissions:['geolocation'],geolocation:{latitude:-25.4,longitude:-49.2}});const page=await context.newPage();const erros=[];page.on('pageerror',e=>erros.push(e.message));
+  await page.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url());
+    if(u.pathname==='/api/academias/distancias/config')return route.fulfill({json:{disponivel:true}});
+    if(u.pathname==='/api/academias/distancias')return route.fulfill({json:{distancias:[{id:'4',distancia_km:3.2}]}});
+    const r=await fetch(app.base+u.pathname+u.search,{method:req.method(),headers:{Authorization:`Bearer ${tokens[0]}`,'Content-Type':'application/json'},...(req.postData()?{body:req.postData()}:{})});await route.fulfill({status:r.status,body:await r.text(),contentType:'application/json'});
+  });
+  await page.goto('http://127.0.0.1:5187/');await page.getByRole('button',{name:'Baixar app',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Em breve na App Store e no Google Play');assert.equal(new URL(page.url()).pathname,'/');
+  await page.goto('http://127.0.0.1:5187/aluno/servicos');
+  const profissional=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Personal Visual',exact:true})});
+  await expect(profissional).toContainText('Musculação');await expect(profissional.getByRole('link',{name:'WhatsApp de Personal Visual'})).toHaveAttribute('href','https://wa.me/5541999991234');await expect(profissional.getByRole('link',{name:'Instagram de Personal Visual'})).toHaveAttribute('href','https://www.instagram.com/personal.visual/');
+  await expect.poll(()=>profissional.getByRole('img').evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
+  await profissional.getByRole('button',{name:'Ver mais',exact:true}).click();let dialog=page.getByRole('dialog');await expect(dialog.getByRole('heading',{name:'Formação',exact:true})).toBeVisible();await expect(dialog.getByRole('img',{name:'Personal Visual',exact:true})).toBeVisible();await expect(dialog).not.toContainText('Não informado');await dialog.getByRole('button',{name:'Fechar',exact:true}).click();
+  await page.getByRole('button',{name:'Ativar localização',exact:true}).click();
+  const academia=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Academia Visual',exact:true})});await expect(academia).toContainText('3.2 km');await expect(academia).toContainText('Rua Central, 100');await expect(academia.getByRole('link',{name:'Instagram de Academia Visual'})).toHaveAttribute('href','https://www.instagram.com/academia.visual/');
+  await academia.getByRole('button',{name:'Ver mais',exact:true}).click();dialog=page.getByRole('dialog');await expect(dialog.getByRole('heading',{name:'Fotos da academia'})).toBeVisible();await expect(dialog.getByRole('heading',{name:'Estrutura e funcionamento'})).toBeVisible();await expect(dialog).toContainText('3.2 km de carro');await expect(dialog).not.toContainText('Não informado');await expect(dialog.getByRole('heading',{name:'Valores',exact:true})).toHaveCount(0);
+  for(const img of await dialog.getByRole('img').all())await expect.poll(()=>img.evaluate(i=>i.complete&&i.naturalWidth>0)).toBe(true);
+  await expect.poll(()=>dialog.evaluate(d=>d.scrollWidth<=d.clientWidth)).toBe(true);await page.setViewportSize({width:1280,height:900});await expect.poll(()=>dialog.evaluate(d=>d.scrollWidth<=d.clientWidth)).toBe(true);
+  assert.deepEqual(erros,[]);console.log('OK: landing, fotos carregadas, seções condicionais, contatos persistidos e seguros, endereço, estrutura, distância simulada e layout responsivo.');
+}finally{await browser?.close();await app.fechar();}

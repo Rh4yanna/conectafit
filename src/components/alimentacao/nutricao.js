@@ -1,0 +1,4 @@
+import {useEffect,useState} from 'react';
+import {apiFetch} from '../../config/api';
+export async function nutricao(path,method='GET',body){const r=await apiFetch('/nutricao'+path,{method,signal:AbortSignal.timeout(20000),...(body?{body:JSON.stringify(body)}:{})}),d=await r.json();if(!r.ok)throw new Error(d.message);return d;}
+export function useNutricao(path){const [dados,setDados]=useState(null),[erro,setErro]=useState(''),[versao,setVersao]=useState(0),[carregando,setCarregando]=useState(true);useEffect(()=>{let atual=true;setCarregando(true);setDados(null);setErro('');nutricao(path).then(d=>{if(atual)setDados(d);}).catch(e=>{if(atual)setErro(e.message);}).finally(()=>{if(atual)setCarregando(false);});return()=>{atual=false;};},[path,versao]);return {dados,erro,carregando,carregar:()=>setVersao(v=>v+1)};}
