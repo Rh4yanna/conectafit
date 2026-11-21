@@ -3,24 +3,44 @@ import {Trash2,Plus} from 'lucide-react';
 import ModalAlimentacao from './ModalAlimentacao';
 import {alimentacao} from './comum';
 /* eslint-disable react/prop-types */
-const categorias=['Proteínas','Cereais e carboidratos','Frutas','Verduras e legumes','Laticínios','Suplementos','Outros'];
-const unidades=['un','g','kg','ml','l','pacote','caixa'];
+const unidades=[['un','un'],['l','L'],['caixa','cx'],['pacote','pct'],['g','g'],['kg','kg']];
 const vazio=()=>({nome:'',quantidade:'',unidade:'un',categoria:'Outros',comprado:false});
-export default function ListaComprasAluno({plano,onClose}){
- const base=`/planos/${plano.id}/lista-compras`,[itens,setItens]=useState(null),[erro,setErro]=useState(''),[form,setForm]=useState(null),[dias,setDias]=useState(7),[filtro,setFiltro]=useState('todos'),[ocupado,setOcupado]=useState(false);
- const carregar=useCallback(async()=>{try{setItens(await alimentacao(base));setErro('');}catch(e){setErro(e.message);}},[base]);useEffect(()=>{carregar();},[carregar]);
+const campo='rounded-lg border border-neutral-500/40 bg-transparent p-2 min-w-0';
+function LinhaItem({item,ocupado,salvar,excluir,editar}){
+ const [quantidade,setQuantidade]=useState(item.quantidade??'');
+ useEffect(()=>setQuantidade(item.quantidade??''),[item.quantidade]);
+ const atualizarQuantidade=()=>{
+  const valor=quantidade===''?null:Number(quantidade);
+  if(valor!==null&&(!Number.isFinite(valor)||valor<=0||valor>1000000)){setQuantidade(item.quantidade??'');return;}
+  if(valor!==(item.quantidade===null?null:Number(item.quantidade)))salvar({...item,quantidade:valor});
+ };
+ return <li className="grid grid-cols-[auto_minmax(0,1fr)_4.25rem_4.25rem_auto] sm:grid-cols-[auto_minmax(0,1fr)_5.5rem_5.5rem_auto] gap-1 sm:gap-3 items-center border-b border-neutral-500/20 py-2">
+  <input type="checkbox" className="h-5 w-5" aria-label={`Marcar ${item.nome} como comprado`} checked={item.comprado} disabled={ocupado} onChange={e=>salvar({...item,comprado:e.target.checked})}/>
+  <button type="button" className={`min-w-0 text-left break-words ${item.comprado?'line-through opacity-60':''}`} onClick={()=>editar(item)}>{item.nome}</button>
+  <input aria-label={`Quantidade de ${item.nome}`} className={campo+' w-full text-sm'} type="number" min="0.01" max="1000000" step="0.01" placeholder="—" value={quantidade} disabled={ocupado} onChange={e=>setQuantidade(e.target.value)} onBlur={atualizarQuantidade}/>
+  <select aria-label={`Unidade de ${item.nome}`} className={campo+' w-full text-sm'} value={item.unidade} disabled={ocupado} onChange={e=>salvar({...item,unidade:e.target.value})}>{item.unidade==='ml'&&<option value="ml">ml</option>}{unidades.map(([v,n])=><option key={v} value={v}>{n}</option>)}</select>
+  <button type="button" className="p-1 text-red-500" aria-label={`Excluir ${item.nome}`} disabled={ocupado} onClick={()=>excluir(item)}><Trash2 size={18}/></button>
+ </li>;
+}
+export default function ListaComprasAluno({plano}){
+ const base=`/planos/${plano.id}/lista-compras`,[itens,setItens]=useState(null),[erro,setErro]=useState(''),[form,setForm]=useState(null),[ocupado,setOcupado]=useState(false);
+ const carregar=useCallback(async()=>{try{setItens(await alimentacao(base));setErro('');}catch(e){setErro(e.message);}},[base]);
+ useEffect(()=>{carregar();},[carregar]);
  const agir=async fn=>{setOcupado(true);setErro('');try{await fn();await carregar();}catch(e){await carregar();setErro(e.message);}finally{setOcupado(false);}};
- const salvar=e=>{e.preventDefault();agir(async()=>{await alimentacao(base+(form.id?`/${form.id}`:''),form.id?'PUT':'POST',form);setForm(null);});};
- const comprados=itens?.filter(i=>i.comprado).length||0,visiveis=itens?.filter(i=>filtro==='todos'||(filtro==='comprados')===i.comprado)||[];
- const campo='rounded-lg border border-neutral-500/40 bg-transparent p-2 min-w-0';
- return <ModalAlimentacao titulo="Lista de compras" onClose={onClose}><div className="space-y-4">
- <p>{itens?`${itens.length} itens · ${comprados} comprados`:'Carregando lista...'}</p>{itens?.length>0&&<progress className="w-full" max={itens.length} value={comprados} aria-label="Progresso das compras"/>}
- <div className="flex flex-wrap gap-2"><button className="bg-sky-600 text-white rounded-lg px-3 py-2 inline-flex gap-2" onClick={()=>setForm(vazio())}><Plus size={18}/>Adicionar item</button><select className={campo} value={filtro} onChange={e=>setFiltro(e.target.value)} aria-label="Filtrar itens"><option value="todos">Todos</option><option value="pendentes">Pendentes</option><option value="comprados">Comprados</option></select><button className="acao-secundaria" disabled={!comprados||ocupado} onClick={()=>{if(window.confirm('Remover os itens comprados?'))agir(async()=>{for(const i of itens.filter(x=>x.comprado))await alimentacao(`${base}/${i.id}`,'DELETE');});}}>Limpar comprados</button></div>
- <div className="flex flex-wrap items-end gap-2"><label className="text-sm">Dias para gerar lista<select className={`${campo} block`} value={dias} onChange={e=>setDias(Number(e.target.value))}>{Array.from({length:30},(_,i)=><option key={i+1}>{i+1}</option>)}</select></label><button className="acao-secundaria" disabled={ocupado} onClick={()=>agir(()=>alimentacao(`${base}/gerar`,'POST',{dias}))}>Adicionar itens do plano</button></div>
- <p className="text-xs">Quantidades estimadas para os dias escolhidos. Confira frutas, salada à vontade e alimentos alternativos e ajuste a lista conforme sua escolha.</p>
- {erro&&<p role="alert" className="text-red-500">{erro}</p>}
- {categorias.map(cat=>{const grupo=visiveis.filter(i=>i.categoria===cat);return grupo.length>0&&<section key={cat}><h3 className="font-bold">{cat}</h3><ul>{grupo.map(i=><li key={i.id} className="flex items-center gap-2 border-b border-neutral-500/20 py-2"><input type="checkbox" aria-label={`Marcar ${i.nome} como comprado`} checked={i.comprado} disabled={ocupado} onChange={e=>{const comprado=e.target.checked;setItens(v=>v.map(x=>x.id===i.id?{...x,comprado}:x));agir(()=>alimentacao(`${base}/${i.id}`,'PUT',{...i,comprado}));}}/><button className={`text-left flex-1 min-w-0 ${i.comprado?'line-through opacity-60':''}`} onClick={()=>setForm({...i})}>{i.nome} · {i.quantidade||'A ajustar'} {i.unidade}</button><button aria-label={`Excluir ${i.nome}`} disabled={ocupado} onClick={()=>{if(window.confirm(`Excluir ${i.nome}?`))agir(()=>alimentacao(`${base}/${i.id}`,'DELETE'));}}><Trash2 size={18}/></button></li>)}</ul></section>;})}
- {itens?.length===0&&<p>Sua lista está vazia. Adicione itens ou gere uma lista a partir do plano.</p>}
- {form&&<form onSubmit={salvar} className="border border-sky-500 rounded-xl p-3 space-y-3"><h3 className="font-bold">{form.id?'Editar item':'Novo item'}</h3><label className="block">Produto<input className={`${campo} block w-full`} required maxLength={120} value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/></label><div className="grid grid-cols-2 gap-2"><label>Quantidade<input className={`${campo} block w-full`} type="number" min="0.01" max="1000000" step="0.01" value={form.quantidade??''} onChange={e=>setForm({...form,quantidade:e.target.value})}/></label><label>Unidade<select className={`${campo} block w-full`} value={form.unidade} onChange={e=>setForm({...form,unidade:e.target.value})}>{unidades.map(u=><option key={u}>{u}</option>)}</select></label></div><label className="block">Categoria<select className={`${campo} block w-full`} value={form.categoria} onChange={e=>setForm({...form,categoria:e.target.value})}>{categorias.map(c=><option key={c}>{c}</option>)}</select></label><div className="flex gap-3"><button disabled={ocupado} className="bg-sky-600 text-white rounded-lg px-4 py-2">Salvar</button><button type="button" className="acao-secundaria" onClick={()=>setForm(null)}>Cancelar</button></div></form>}
- </div></ModalAlimentacao>;
+ const salvarItem=item=>{setItens(v=>v.map(x=>x.id===item.id?item:x));agir(()=>alimentacao(`${base}/${item.id}`,'PUT',item));};
+ const salvarForm=e=>{e.preventDefault();const dados=form;agir(async()=>{await alimentacao(base+(dados.id?`/${dados.id}`:''),dados.id?'PUT':'POST',dados);setForm(null);});};
+ const ordenados=[...(itens||[])].sort((a,b)=>Number(a.comprado)-Number(b.comprado)||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+ return <section className="border border-neutral-500/25 rounded-2xl p-4 sm:p-5 space-y-3" aria-label="Lista de compras">
+  <header className="flex items-center justify-between gap-3"><h2 className="text-xl font-bold">Lista de compras</h2><button type="button" aria-label="Adicionar item" title="Adicionar item" className="rounded-xl border border-sky-500 text-sky-600 p-2" onClick={()=>setForm(vazio())}><Plus size={22}/></button></header>
+  {erro&&<p role="alert" className="text-red-500">{erro} <button type="button" className="underline" onClick={carregar}>Tentar novamente</button></p>}
+  {!itens&&!erro&&<p role="status">Carregando lista...</p>}
+  {itens?.length===0&&<p>Adicione seu primeiro item.</p>}
+  <ul>{ordenados.map(item=><LinhaItem key={item.id} item={item} ocupado={ocupado} salvar={salvarItem} editar={x=>setForm({...x})} excluir={x=>{if(window.confirm(`Excluir ${x.nome}?`))agir(()=>alimentacao(`${base}/${x.id}`,'DELETE'));}}/>)}</ul>
+  {form&&<ModalAlimentacao titulo={form.id?'Editar item':'Adicionar item'} onClose={()=>setForm(null)} ocupado={ocupado}><form onSubmit={salvarForm} className="space-y-4">
+   <label className="block">Nome do item<input className={campo+' block w-full mt-1'} required maxLength={120} value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/></label>
+   <div className="grid grid-cols-2 gap-3"><label>Quantidade<input className={campo+' block w-full mt-1'} type="number" min="0.01" max="1000000" step="0.01" value={form.quantidade??''} onChange={e=>setForm({...form,quantidade:e.target.value})}/></label>
+    <label>Unidade<select className={campo+' block w-full mt-1'} value={form.unidade} onChange={e=>setForm({...form,unidade:e.target.value})}>{form.unidade==='ml'&&<option value="ml">ml</option>}{unidades.map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label></div>
+   <div className="flex gap-3"><button disabled={ocupado} className="bg-sky-600 text-white rounded-lg px-4 py-2">Salvar</button><button type="button" className="acao-secundaria" onClick={()=>setForm(null)}>Cancelar</button></div>
+  </form></ModalAlimentacao>}
+ </section>;
 }
