@@ -51,7 +51,7 @@ function Descanso({ desabilitado = false }) {
   </fieldset>;
 }
 
-export default function SessoesTreino({ ficha, limparFicha, onAtualizada, aba='sessao' }) {
+export default function SessoesTreino({ ficha, limparFicha, onAtualizada, aba='sessao', iniciarDireto=false, limparInicioDireto }) {
   const { temaEscuro } = useTheme();
   const [sessao, setSessao] = useState(null);
   const [historico, setHistorico] = useState([]);
@@ -122,6 +122,7 @@ export default function SessoesTreino({ ficha, limparFicha, onAtualizada, aba='s
     catch (e) { setErro(e.message); if (e.status === 409) await carregar(); }
     finally { trava.current = false; setOcupado(false); }
   }, [ficha, limparFicha, carregar, sessao, carregando]);
+  useEffect(()=>{if(iniciarDireto&&ficha&&!carregando&&carregou.current){limparInicioDireto?.();if(!sessao)iniciar();}},[iniciarDireto,ficha,carregando,sessao,iniciar,limparInicioDireto]);
   useEffect(() => { if (confirmar) feedback.current?.focus(); }, [confirmar]);
   const salvar = async (status = sessao.status) => {
     if (trava.current) return;
@@ -219,6 +220,7 @@ export default function SessoesTreino({ ficha, limparFicha, onAtualizada, aba='s
               </div>)}
               </div>
               <div className="space-y-3 pt-2">
+              <label className="block text-sm">Observações do exercício<textarea className={`${campo} mt-1`} maxLength={1000} rows={2} value={ex.observacoes||''} onChange={e=>alterar({...sessao,exercicios:sessao.exercicios.map((item,indice)=>indice===i?{...item,observacoes:e.target.value}:item)})}/></label>
               {ex.prescricao.descanso_segundos!=null&&<p className="text-sm">Descanso entre séries: {ex.prescricao.descanso_segundos} segundos</p>}
               {ex.prescricao.orientacoes && <p>{ex.prescricao.orientacoes}</p>}
               {(ex.variacao||ex.equipamento)&&<p className="text-sm">{[ex.variacao,ex.equipamento].filter(Boolean).join(' • ')}</p>}{ex.demonstracao_propria?<DemonstracaoPropria key={ex.demonstracao_propria.id} dados={ex.demonstracao_propria}/>:ex.demonstracao?.videos?.length ? <DemonstracaoExercicio dados={ex.demonstracao}/> : <p className="text-sm opacity-60">Demonstração indisponível</p>}

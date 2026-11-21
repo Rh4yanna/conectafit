@@ -46,6 +46,10 @@ export function validarRegistro(originais, enviados, observacoes, status) {
 export function rotasSessoesTreino(db) {
   const router = Router();
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+  router.get('/exemplos', async (req,res) => {
+    try { const r=await db.query('SELECT id,titulo,inicio,fim,exercicios,observacoes,feedbacks FROM exemplos_treino_aluno WHERE aluno_id=$1 ORDER BY inicio DESC,id DESC',[req.usuario.id]);res.json(r.rows); }
+    catch { res.status(500).json({message:'Não foi possível carregar os exemplos de treino.'}); }
+  });
   router.get('/resumo', async (req, res) => {
     try { res.json(await resumoTreinos(db, req.usuario.id)); }
     catch { res.status(500).json({ message: 'Não foi possível carregar a programação de treinos.' }); }

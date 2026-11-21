@@ -12,10 +12,10 @@ export function normalizarFicha(exercicios, anteriores = [], exigirVideo = false
   return exercicios.map(ex => {
     const item = ex.catalogo_id ? exercicioCatalogo(ex.catalogo_id) : null;
     if (ex.catalogo_id && !item) throw falha('Exercício da biblioteca não encontrado. Escolha novamente.');
-    if (exigirVideo && !item?.videos?.length) throw falha('Vincule cada exercício a um vídeo da biblioteca antes de salvar o treino.');
     const nome = item ? item.nome : ex.nome.trim();
     if (String(ex.repeticoes || '').length > 80 || String(ex.carga || '').length > 80 || String(ex.orientacoes || '').length > 1000) throw falha('Orientações ou valores da ficha excedem o tamanho permitido.');
     const anterior = anteriores.find(a => a.id_exercicio === ex.id_exercicio && a.catalogo_id === ex.catalogo_id && normalizarBusca(a.nome) === normalizarBusca(nome));
+    if (exigirVideo && !item?.videos?.length && !anterior) throw falha('Vincule cada exercício a um vídeo da biblioteca antes de salvar o treino.');
     if(item?.indisponivel&&!anterior)throw falha('Este exercício foi retirado da biblioteca. Escolha outro para novas prescrições.');
     return { id_exercicio: anterior?.id_exercicio || crypto.randomUUID(), catalogo_id: item?.id || null, nome,
       series: Number(ex.series), repeticoes: String(ex.repeticoes || ''), carga: String(ex.carga || ''), orientacoes: String(ex.orientacoes || '') };

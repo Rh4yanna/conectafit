@@ -45,6 +45,16 @@ export function listaCompras(conteudo,dias) {
   }
   return {dias,itens:[...itens.values()].map(i=>({...i,quantidade:Math.round(i.quantidade*100)/100})).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')),sem_quantidades:[...new Set(semQuantidades)]};
 }
+export function categoriaCompra(nome){
+  const n=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  if(/whey|suplemento/.test(n))return 'Suplementos';
+  if(/queijo|iogurte|leite/.test(n))return 'Laticínios';
+  if(/ovo|frango|carne|peixe|atum/.test(n))return 'Proteínas';
+  if(/fruta|banana|maca|mamao|melao|uva|laranja|abacaxi/.test(n))return 'Frutas';
+  if(/legume|salada|alface|tomate|brocolis|cenoura/.test(n))return 'Verduras e legumes';
+  if(/arroz|pao|aveia|farinha|macarrao|batata|mandioca|cuscuz/.test(n))return 'Cereais e carboidratos';
+  return 'Outros';
+}
 export async function resumoAlimentacao(db,alunoId){
   const r=await db.query(`SELECT COUNT(*)::int AS realizadas FROM diario_alimentar WHERE aluno_id=$1 AND status='realizada'
     AND data>=date_trunc('week',NOW() AT TIME ZONE 'America/Sao_Paulo')::date
@@ -150,7 +160,8 @@ export function rotasAlimentacao(db){
     const profissional=req.usuario.tipo_usuario==='nutri';const alunoId=profissional?req.query.aluno_id:req.usuario.id;
     if(!idValido(alunoId))throw falha('Aluno inválido.');if(profissional)await acessoNutri(db,req.usuario.id,alunoId);
     const r=await db.query(`SELECT p.*,v.conteudo->'refeicoes' AS refeicoes FROM planos_alimentares p JOIN versoes_alimentares v ON v.plano_id=p.id AND v.versao=p.versao
-      WHERE p.aluno_id=$1 AND p.excluido_em IS NULL ${profissional?'AND p.nutri_id=$2':''} ORDER BY p.vigente DESC,p.atualizado_em DESC,p.id DESC`,profissional?[alunoId,req.usuario.id]:[alunoId]);res.json(r.rows);
+      WHERE p.aluno_id=$1 AND p.excluido_em IS NULL ${profissional?'AND p.nutri_id=$2':''} ORDER BY p.vigente DESC,p.atualizado_em DESC,p.id DESC`,profissional?[alunoId,req.usuario.id]:[alunoId]);
+    if(!profissional){const s=await db.query('SELECT plano_id,original,escolhida FROM substituicoes_aluno WHERE aluno_id=$1',[alunoId]);for(const p of r.rows)p.substituicoes_escolhidas=s.rows.filter(x=>String(x.plano_id)===String(p.id));}res.json(r.rows);
   }));
   router.post('/planos',rota(async(req,res)=>res.status(201).json(await criarPlano(db,req.usuario,req.body,req.usuario.tipo_usuario==='nutri'?req.body.aluno_id:req.usuario.id))));
   router.put('/planos/:id',rota(async(req,res)=>res.json(await atualizarPlano(db,req.usuario,req.params.id,req.body))));
@@ -167,6 +178,20 @@ export function rotasAlimentacao(db){
   }));
   router.get('/planos/:id/versoes',rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);res.json((await db.query('SELECT versao,criado_em,conteudo FROM versoes_alimentares WHERE plano_id=$1 ORDER BY versao DESC',[p.id])).rows);}));
   router.get('/planos/:id/compras',rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);const v=await versaoPlano(db,p,req.query.versao??p.versao);res.json({...listaCompras(v.conteudo,Number(req.query.dias||7)),titulo:v.conteudo.titulo,versao:v.versao});}));
+  const validarItem=b=>{
+    const nome=texto(b.nome,120,true),unidade=texto(b.unidade,20,true),categoria=texto(b.categoria||'Outros',30,true);
+    const quantidade=b.quantidade==null||b.quantidade===''?null:Number(b.quantidade);
+    if(!['un','g','kg','ml','l','pacote','caixa'].includes(unidade)||!['Proteínas','Cereais e carboidratos','Frutas','Verduras e legumes','Laticínios','Suplementos','Outros'].includes(categoria)||quantidade!==null&&(!Number.isFinite(quantidade)||quantidade<=0||quantidade>1000000)||typeof b.comprado!=='boolean')throw falha('Confira quantidade, unidade e categoria.');
+    return {nome,unidade,categoria,quantidade,comprado:b.comprado};
+  };
+  router.get('/planos/:id/lista-compras',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);const r=await db.query('SELECT * FROM itens_lista_compras WHERE aluno_id=$1 AND plano_id=$2 ORDER BY categoria,nome,id',[req.usuario.id,p.id]);res.json(r.rows);}));
+  router.get('/planos/:id/substituicoes',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);res.json((await db.query('SELECT * FROM substituicoes_aluno WHERE aluno_id=$1 AND plano_id=$2 ORDER BY original',[req.usuario.id,p.id])).rows);}));
+  router.put('/planos/:id/substituicoes',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);const original=texto(req.body.original,120,true),escolhida=texto(req.body.escolhida,120,true);const r=await db.query('INSERT INTO substituicoes_aluno(aluno_id,plano_id,original,escolhida) VALUES($1,$2,$3,$4) ON CONFLICT(aluno_id,plano_id,original) DO UPDATE SET escolhida=$4,atualizada_em=NOW() RETURNING *',[req.usuario.id,p.id,original,escolhida]);res.json(r.rows[0]);}));
+  router.delete('/planos/:id/substituicoes/:item',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);if(!idValido(req.params.item))throw falha('Substituição inválida.');const r=await db.query('DELETE FROM substituicoes_aluno WHERE id=$1 AND aluno_id=$2 AND plano_id=$3 RETURNING id',[req.params.item,req.usuario.id,p.id]);if(!r.rowCount)throw falha('Substituição não encontrada.',404);res.json({message:'Substituição removida.'});}));
+  router.post('/planos/:id/lista-compras/gerar',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);const v=await versaoPlano(db,p);const sugestao=listaCompras(v.conteudo,Number(req.body.dias));const c=await db.connect();try{await c.query('BEGIN');await c.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE',[req.usuario.id]);for(const item of sugestao.itens)await c.query('INSERT INTO itens_lista_compras(aluno_id,plano_id,nome,quantidade,unidade,categoria) SELECT $1,$2,$3::varchar,$4,$5::varchar,$6 WHERE NOT EXISTS(SELECT 1 FROM itens_lista_compras WHERE aluno_id=$1 AND plano_id=$2 AND lower(nome)=lower($3::varchar) AND unidade=$5::varchar)',[req.usuario.id,p.id,item.nome,item.quantidade,item.unidade,categoriaCompra(item.nome)]);await c.query('COMMIT');res.json({sem_quantidades:sugestao.sem_quantidades});}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}));
+  router.post('/planos/:id/lista-compras',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);const b=validarItem(req.body);const r=await db.query('INSERT INTO itens_lista_compras(aluno_id,plano_id,nome,quantidade,unidade,categoria,comprado) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',[req.usuario.id,p.id,b.nome,b.quantidade,b.unidade,b.categoria,b.comprado]);res.status(201).json(r.rows[0]);}));
+  router.put('/planos/:id/lista-compras/:item',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);if(!idValido(req.params.item))throw falha('Item inválido.');const b=validarItem(req.body);const r=await db.query('UPDATE itens_lista_compras SET nome=$1,quantidade=$2,unidade=$3,categoria=$4,comprado=$5 WHERE id=$6 AND aluno_id=$7 AND plano_id=$8 RETURNING *',[b.nome,b.quantidade,b.unidade,b.categoria,b.comprado,req.params.item,req.usuario.id,p.id]);if(!r.rowCount)throw falha('Item não encontrado.',404);res.json(r.rows[0]);}));
+  router.delete('/planos/:id/lista-compras/:item',aluno,rota(async(req,res)=>{const p=await planoAcessivel(db,req.usuario,req.params.id);if(!idValido(req.params.item))throw falha('Item inválido.');const r=await db.query('DELETE FROM itens_lista_compras WHERE id=$1 AND aluno_id=$2 AND plano_id=$3 RETURNING id',[req.params.item,req.usuario.id,p.id]);if(!r.rowCount)throw falha('Item não encontrado.',404);res.json({message:'Item removido.'});}));
   router.get('/diario',aluno,rota(async(req,res)=>{
     const offset=Number(req.query.offset||0);if(!Number.isSafeInteger(offset)||offset<0)throw falha('Página inválida.');
     const r=await db.query(`SELECT ${camposDiario} FROM diario_alimentar WHERE aluno_id=$1 ORDER BY data DESC,horario DESC NULLS LAST,id DESC LIMIT 21 OFFSET $2`,[req.usuario.id,offset]);

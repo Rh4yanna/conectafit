@@ -763,11 +763,16 @@ app.get("/api/aluno/resumo", autenticar, exigirPerfil("aluno"), async (req, res)
       FROM (SELECT 1) base
       LEFT JOIN metas_aluno m ON m.aluno_id=$1
       LEFT JOIN progresso_semanal p ON p.aluno_id=$1 AND p.semana=date_trunc('week', CURRENT_DATE)::date`, [req.usuario.id]);
-    const [refeicao] = await Promise.all([
-      db.query("SELECT r.nome,r.horario,r.descricao AS detalhes FROM refeicoes_plano r JOIN planos_alimentares p ON p.id=r.plano_id WHERE p.aluno_id=$1 AND p.ativo=TRUE AND p.vigente=TRUE AND p.excluido_em IS NULL ORDER BY r.horario NULLS LAST LIMIT 1",[req.usuario.id])
+    const [refeicao,refeicoesHoje,orientacoes] = await Promise.all([
+      db.query("SELECT r.nome,r.horario,r.descricao AS detalhes FROM refeicoes_plano r JOIN planos_alimentares p ON p.id=r.plano_id WHERE p.aluno_id=$1 AND p.ativo=TRUE AND p.vigente=TRUE AND p.excluido_em IS NULL ORDER BY r.horario NULLS LAST LIMIT 1",[req.usuario.id]),
+      db.query(`SELECT r.id,r.nome,r.horario,r.descricao AS detalhes,r.alimentos,r.orientacoes,p.id AS plano_id,p.versao AS plano_versao,p.titulo AS plano_titulo,
+        COALESCE((SELECT json_agg(json_build_object('original',s.original,'escolhida',s.escolhida)) FROM substituicoes_aluno s WHERE s.aluno_id=$1 AND s.plano_id=p.id AND EXISTS(SELECT 1 FROM jsonb_array_elements(r.alimentos) a WHERE a->>'nome'=s.original)),'[]') AS substituicoes,
+        EXISTS(SELECT 1 FROM diario_alimentar d WHERE d.aluno_id=$1 AND d.status='realizada' AND d.data=(now() AT TIME ZONE 'America/Sao_Paulo')::date AND (d.refeicao_id=r.id::text OR (d.refeicao_id IS NULL AND d.nome=r.nome))) AS registrada
+        FROM refeicoes_plano r JOIN planos_alimentares p ON p.id=r.plano_id WHERE p.aluno_id=$1 AND p.ativo AND p.vigente AND p.excluido_em IS NULL ORDER BY r.ordem,r.id`,[req.usuario.id]),
+      db.query('SELECT cardio,treino FROM orientacoes_aluno WHERE aluno_id=$1',[req.usuario.id])
     ]);
     const automatico = await resumoTreinos(db, req.usuario.id);
-    return res.json({...resultado.rows[0],agua_atual:(await resumoHidratacao(db,req.usuario.id)).hoje_ml/1000,treinos_atual:automatico.concluidos,refeicoes_atual:await resumoAlimentacao(db,req.usuario.id),treinos:automatico,proximo_treino:automatico.treinos_hoje.find(t=>!t.concluido_hoje)||null,proxima_refeicao:refeicao.rows[0]||null});
+    return res.json({...resultado.rows[0],agua_atual:(await resumoHidratacao(db,req.usuario.id)).hoje_ml/1000,treinos_atual:automatico.concluidos,refeicoes_atual:await resumoAlimentacao(db,req.usuario.id),treinos:automatico,proximo_treino:automatico.treinos_hoje.find(t=>!t.concluido_hoje)||null,proxima_refeicao:refeicao.rows[0]||null,refeicoes_hoje:refeicoesHoje.rows,orientacoes:orientacoes.rows[0]||null});
   } catch (error) { console.error("ERRO RESUMO:", error.code || 'erro interno'); return res.status(500).json({ message: "Erro ao carregar dashboard." }); }
 });
 

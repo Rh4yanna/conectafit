@@ -2,6 +2,7 @@ import AbasAluno from '../../components/aluno/AbasAluno';
 import MensagemTemporaria from '../../components/MensagemTemporaria';
 import ModalAlimentacao from '../../components/alimentacao/ModalAlimentacao';
 import SessoesTreino from './SessoesTreino';
+import ExemplosTreino from '../../components/aluno/ExemplosTreino';
 import BibliotecaExercicios from '../../components/BibliotecaExercicios';
 import DemonstracaoExercicio from '../../components/DemonstracaoExercicio';
 import { useTheme } from '../../context/ThemeContext';
@@ -26,6 +27,8 @@ export default function MeusTreinos() {
   const [modalAberto, setModalAberto] = useState(false);
   const [aba,setAba]=useState('sessao');
   const [treinoAtivo, setTreinoAtivo] = useState(null);
+  const [iniciarDireto,setIniciarDireto]=useState(false);
+  const [orientacoes,setOrientacoes]=useState(null);
   const [loading, setLoading] = useState(false);
   const [carregandoTreinos, setCarregandoTreinos] = useState(true);
   const [erroTreinos, setErroTreinos] = useState('');
@@ -33,11 +36,12 @@ export default function MeusTreinos() {
 
   // ESTADOS DE DADOS
   const [treinos, setTreinos] = useState([]);
+  useEffect(()=>{let atual=true;apiFetch('/aluno/resumo').then(r=>r.ok?r.json():null).then(d=>{if(atual)setOrientacoes(d?.orientacoes||null);}).catch(()=>{});return()=>{atual=false;};},[]);
   useEffect(() => {
     const id = parametros.get('ficha');
     if (!id || carregandoTreinos) return;
     const ficha = treinos.find(t => String(t.id) === id);
-    if (ficha) setTreinoAtivo(ficha);
+    if (ficha) {setTreinoAtivo(ficha);setIniciarDireto(parametros.get('iniciar')==='1');}
     setParametros({}, { replace: true });
   }, [parametros, treinos, carregandoTreinos, setParametros]);
 
@@ -289,7 +293,7 @@ export default function MeusTreinos() {
         </div>
 
 
-        <AbasAluno valor={aba} onChange={setAba} itens={[['sessao','Meus treinos'],['historico','Histórico'],['retornos','Feedbacks']]}/><div hidden={aba!=='sessao'}>
+        <AbasAluno valor={aba} onChange={setAba} itens={[['sessao','Meus treinos'],['historico','Histórico'],['retornos','Feedbacks']]}/><div hidden={aba!=='sessao'}>{orientacoes&&<details className="border border-sky-500/30 rounded-xl p-4 mb-4"><summary className="font-bold cursor-pointer">Orientações do treino</summary><p className="mt-2 text-sm">{orientacoes.treino}</p><p className="mt-2 text-sm">{orientacoes.cardio}</p></details>}
         {carregandoTreinos ? (
           <div className="flex flex-col items-center justify-center py-16 space-y-3">
             <Loader2 className="w-8 h-8 text-[#00AEFF] animate-spin" />
@@ -411,7 +415,7 @@ export default function MeusTreinos() {
             </section>)}
           </div>
         )}
-        </div><SessoesTreino aba={aba} ficha={treinoAtivo} limparFicha={() => setTreinoAtivo(null)} />
+        </div><SessoesTreino aba={aba} ficha={treinoAtivo} iniciarDireto={iniciarDireto} limparInicioDireto={()=>setIniciarDireto(false)} limparFicha={() => setTreinoAtivo(null)} />{['historico','retornos'].includes(aba)&&<ExemplosTreino aba={aba}/>}
       </main>
 
       {/* MODAL CRIAR / EDITAR TREINO */}
