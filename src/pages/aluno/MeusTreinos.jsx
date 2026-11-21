@@ -2,7 +2,6 @@ import AbasAluno from '../../components/aluno/AbasAluno';
 import MensagemTemporaria from '../../components/MensagemTemporaria';
 import ModalAlimentacao from '../../components/alimentacao/ModalAlimentacao';
 import SessoesTreino from './SessoesTreino';
-import ExemplosTreino from '../../components/aluno/ExemplosTreino';
 import BibliotecaExercicios from '../../components/BibliotecaExercicios';
 import DemonstracaoExercicio from '../../components/DemonstracaoExercicio';
 import { useTheme } from '../../context/ThemeContext';
@@ -415,7 +414,7 @@ export default function MeusTreinos() {
             </section>)}
           </div>
         )}
-        </div><SessoesTreino aba={aba} ficha={treinoAtivo} iniciarDireto={iniciarDireto} limparInicioDireto={()=>setIniciarDireto(false)} limparFicha={() => setTreinoAtivo(null)} />{['historico','retornos'].includes(aba)&&<ExemplosTreino aba={aba}/>}
+        </div><SessoesTreino aba={aba} ficha={treinoAtivo} iniciarDireto={iniciarDireto} limparInicioDireto={()=>setIniciarDireto(false)} limparFicha={() => setTreinoAtivo(null)} />
       </main>
 
       {/* MODAL CRIAR / EDITAR TREINO */}
