@@ -299,7 +299,7 @@ export default function GerenciarPerfil() {
         </div>
 
         {/* SEÇÃO 4: PLANOS E VALORES */}
-        <OfertaServico/>
+        <OfertaServico ocultarDescricao/>
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2 border-b border-neutral-800 pb-3">
             <DollarSign className="w-4 h-4 text-[#00AEFF]" /> Valores dos Planos (R$)

@@ -74,7 +74,7 @@ export default function AlunosAtivos({nutri=false}) {
           <div>
             <h2 className="text-lg font-bold text-white mb-1">{nutri?'Meus pacientes':'Meus alunos'}</h2>
             <p className="text-xs text-neutral-400">
-              Total de {alunosFiltrados.length} aluno(s). O status vale apenas para o seu acompanhamento.
+              Total de {alunosFiltrados.length} aluno(s).{nutri&&' O status vale apenas para o seu acompanhamento.'}
             </p>
           </div>
 
