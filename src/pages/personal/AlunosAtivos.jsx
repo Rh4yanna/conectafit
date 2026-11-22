@@ -153,13 +153,13 @@ export default function AlunosAtivos({nutri=false}) {
                   >
                     <Dumbbell className="w-3.5 h-3.5" /> {nutri?'Ver Dieta':'Ver Fichas'}
                   </button>
-                  <button
+                  {nutri&&<button
                     disabled={!aluno.ativo} onClick={() => setAlunoAberto(aluno.id)}
                     className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl transition-colors"
                     title="Montar Ficha"
                   >
                     <ChevronRight className="w-4 h-4" />
-                  </button>
+                  </button>}
                 </div>
               </div>
             ))}
