@@ -35,7 +35,7 @@ export default function DashboardAluno() {
     {resumo && <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className={`${card} fit-stat`}><Dumbbell className="text-sky-500"/><p className="text-2xl font-bold mt-3">{resumo.treinos_atual} / {resumo.treinos_meta}</p><p className="text-sm">Treinos concluídos na semana</p></div>
-        <div className={`${card} fit-stat`}><Utensils className="text-sky-500"/><p className="text-2xl font-bold mt-3">{resumo.refeicoes_atual} / {resumo.refeicoes_meta}</p><p className="text-sm">Refeições registradas na semana</p><p className="text-xs">Meta semanal pessoal; não representa o total de refeições previstas no plano.</p></div>
+        <div className={`${card} fit-stat`}><Utensils className="text-sky-500"/><p className="text-2xl font-bold mt-3">{resumo.refeicoes_atual} / {resumo.refeicoes_meta}</p><p className="text-sm">Refeições registradas na semana</p></div>
         <div className={`${card} fit-stat`}><Activity className="text-sky-500"/><p className="text-2xl font-bold mt-3">{resumo.agua_atual} L</p><p className="text-sm">Água registrada hoje</p><p className="text-xs">Meta diária: {resumo.agua_meta} L</p></div>
         <div className={`${card} fit-stat`}><Users className="text-amber-500"/><p className="text-2xl font-bold mt-3">{resumo.conexoes}</p><p className="text-sm">Conexões ativas</p></div>
       </div>
