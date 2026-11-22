@@ -21,6 +21,11 @@ test('fiscal: rascunhos, vínculo, idempotência, permissões e isolamento',asyn
  assert.equal((await req('/fiscal/rascunhos','POST',body)).data.id,novo.data.id);assert.equal((await req('/fiscal/rascunhos','POST',{...body,valor:121})).status,409);
  assert.equal((await req('/fiscal/rascunhos','POST',{...body,chave_cliente:crypto.randomUUID()})).status,409);
  assert.equal((await req(`/fiscal/documentos/${novo.data.id}`)).data.eventos.length,1);assert.equal((await req(`/fiscal/documentos/${novo.data.id}`,'GET',null,2,2)).status,404);
+ assert.equal((await req(`/fiscal/rascunhos/${novo.data.id}`,'PUT',{...body,servico:'Plano atualizado'})).data.dados.servico,'Plano atualizado');
+ assert.equal((await req(`/fiscal/documentos/${novo.data.id}`)).data.eventos.length,2);
+ assert.equal((await req(`/fiscal/rascunhos/${novo.data.id}`,'PUT',body,2,2)).status,404);
+ await app.db.query(`UPDATE ${app.schema}.documentos_fiscais_academia SET status='autorizada' WHERE id=$1`,[novo.data.id]);
+ assert.equal((await req(`/fiscal/rascunhos/${novo.data.id}`,'PUT',body)).status,409);
  assert.equal((await req('/fiscal/rascunhos','POST',{...body,chave_cliente:crypto.randomUUID()},2,2)).status,404);
  assert.equal((await req('/fiscal/rascunhos','POST',{...body,mensalidade_id:null,matricula_id:null,valor:-1,chave_cliente:crypto.randomUUID()})).status,400);
  assert.equal((await app.db.query(`SELECT count(*)::int n FROM ${app.schema}.lancamentos_academia`)).rows[0].n,0);
