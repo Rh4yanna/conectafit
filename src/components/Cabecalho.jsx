@@ -9,7 +9,7 @@ import BotaoSair from './BotaoSair';
 
 const menus = {
   aluno: [['dashboard','Início'],['perfil','Meu perfil'],['treinos','Treinos'],['dietas','Alimentação'],['conexoes','Conexões'],['metas','Metas'],['medidas','Medidas e fotos'],['servicos','Buscar serviços'],['rotina','Minha rotina']],
-  personal: [['inicio','Início'],['perfil','Meu perfil'],['alunos','Alunos'],['biblioteca','Exercícios'],['agenda','Agenda'],['solicitacoes','Solicitações']],
+  personal: [['inicio','Início'],['perfil','Meu perfil'],['alunos','Alunos'],['agenda','Agenda'],['solicitacoes','Solicitações']],
   nutri: [['inicio','Início'],['perfil','Meu perfil'],['pacientes','Pacientes'],['agenda','Agenda'],['solicitacoes','Solicitações']],
   academia: [['inicio','Início'],['perfil','Perfil da academia'],['alunos','Alunos'],['planos','Planos'],['pagamentos','Financeiro'],['presenca','Presença'],['turmas','Turmas'],['equipe','Equipe'],['visitas','Visitas']],
 };
