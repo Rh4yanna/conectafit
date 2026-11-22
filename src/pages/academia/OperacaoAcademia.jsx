@@ -6,7 +6,7 @@ import {areasPermitidas} from './navegacao-academia';
 import RelatoriosAcademia from './InsightsAcademia';
 import ContasPagarAcademia from './ContasPagarAcademia';
 import EstoqueAcademia from './EstoqueAcademia';
-import ComercialAcademia from './ComercialAcademia';
+import ComercialAcademia from './GestaoLeads';
 import FluxoAcademia from './FluxoAcademia';
 import FeedbacksAcademia from './FeedbacksAcademia';
 import AgendaAcademia from './AgendaAcademia';

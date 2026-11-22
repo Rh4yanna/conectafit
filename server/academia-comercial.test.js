@@ -16,7 +16,8 @@ test('comercial: visitas, contatos, conversão sem sobrescrita e isolamento',asy
   const visita={titulo:'Visita',tipo:'compromisso',responsavel:'Ana',inicio:new Date(Date.now()+86400000).toISOString(),fim:new Date(Date.now()+90000000).toISOString(),lead_id:l.id};
   const agenda=await req('/agenda','POST',visita,4);assert.equal(agenda.status,200);assert.equal(agenda.d.lead_id,l.id);
   assert.equal((await req('/agenda','POST',{...visita,responsavel:'Outro'},4)).status,409);
-  let atual=(await req('/leads')).d[0];assert.equal(atual.status,'visita_agendada');assert.equal(atual.interacoes.length,2);
+  let atual=(await req('/leads')).d[0];assert.equal(atual.status,'visita_agendada');assert.equal(atual.interacoes.length,2);assert.equal(atual.agendamentos.length,1);assert.equal(String(atual.agendamentos[0].id),String(agenda.d.id));
+  const alterada=await req('/agenda','POST',{...agenda.d,titulo:'Visita atualizada'},4);assert.equal(alterada.status,200);assert.equal((await req('/leads')).d[0].agendamentos[0].titulo,'Visita atualizada');
   const conversoes=await Promise.all([req(`/leads/${l.id}/converter`,'POST',{versao:atual.versao}),req(`/leads/${l.id}/converter`,'POST',{versao:atual.versao})]);assert.ok(conversoes.every(r=>r.status===200));assert.equal(conversoes[0].d.matricula_id,conversoes[1].d.matricula_id);
   const m=(await req('/matriculas')).d[0];assert.equal(m.situacao,'inativa');assert.equal((await req('/matriculas')).d.length,1);
   const existente=(await req('/matriculas','POST',{nome:'Nome preservado',email:'existente@teste.invalid'})).d;
