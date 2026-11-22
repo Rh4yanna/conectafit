@@ -29,7 +29,7 @@ export default function DashboardAluno() {
   const agenda = resumo?.treinos;
   const ativa = agenda?.sessao_ativa;
   return <main className={`px-5 lg:px-10 py-8 pb-28 space-y-6 ${temaEscuro ? 'text-white' : 'text-gray-900'}`}>
-    <header><h1 className="text-2xl font-black">Visão geral</h1><p className="text-sm mt-1">Seu acompanhamento e os treinos programados para hoje.</p></header>
+    <header><h1 className="text-2xl font-black">Visão geral</h1></header>
     {erro && <MensagemTemporaria as="p" role="alert" className="border border-red-500 rounded-xl p-4">{erro} <button className="acao-secundaria" onClick={() => setTentativa(n => n + 1)}>Tentar novamente</button></MensagemTemporaria>}
     {!resumo && !erro && <p role="status">Carregando seu painel...</p>}
     {resumo && <>
