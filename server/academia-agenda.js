@@ -19,20 +19,22 @@ export function rotasAgendaAcademia(db){
   s.json((await db.query(`SELECT a.*,m.aluno_nome FROM agenda_academia a LEFT JOIN matriculas_academia m ON m.id=a.matricula_id WHERE a.academia_id=$1 AND a.inicio<($2::date+interval '1 month') AT TIME ZONE 'America/Sao_Paulo' AND a.fim>=$2::date AT TIME ZONE 'America/Sao_Paulo' ORDER BY a.inicio,a.id`,[q.unidade,mes+'-01'])).rows);
  }));
  r.post('/agenda',rota(async(q,s)=>{
-  permitir(q,'gestor','recepcao');const b=q.body,titulo=texto(b.titulo,120,true),responsavelInformado=texto(b.responsavel,150,!b.responsavel_id),observacao=texto(b.observacao,2000),inicio=new Date(b.inicio),fim=new Date(b.fim);
-  if(!['compromisso','avaliacao'].includes(b.tipo)||!Number.isFinite(+inicio)||!Number.isFinite(+fim)||fim<=inicio||fim-inicio>86400000)throw erro('Confira o tipo e os horários do compromisso.');
+  permitir(q,'gestor','recepcao');const b=q.body,eventoUnidade=['evento','feriado','manutencao','outro'].includes(b.tipo),titulo=texto(b.titulo,120,true),responsavelInformado=eventoUnidade?'Academia':texto(b.responsavel,150,!b.responsavel_id),observacao=texto(b.observacao,2000),inicio=new Date(b.inicio),fim=new Date(b.fim);
+  if(!['compromisso','avaliacao','evento','feriado','manutencao','outro'].includes(b.tipo)||!Number.isFinite(+inicio)||!Number.isFinite(+fim)||fim<=inicio||fim-inicio>86400000)throw erro('Confira o tipo e os horários do compromisso.');
+  if(eventoUnidade&&(b.matricula_id||b.lead_id||b.responsavel_id))throw erro('Eventos da academia não devem ser vinculados a alunos, interessados ou responsáveis individuais.');
   s.json(await tx(db,async c=>{
    await c.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE',[q.unidade]);
    let responsavel=responsavelInformado;
    if(b.responsavel_id){const u=(await c.query('SELECT id,nome FROM usuarios WHERE id=$2 AND (id=$1 OR EXISTS(SELECT 1 FROM equipe_academia WHERE academia_id=$1 AND usuario_id=$2 AND ativo))',[q.unidade,b.responsavel_id])).rows[0];if(!u)throw erro('Responsável não pertence à equipe ativa.',400);responsavel=u.nome;}
    let antes;if(b.id){antes=(await c.query('SELECT * FROM agenda_academia WHERE id=$1 AND academia_id=$2 FOR UPDATE',[b.id,q.unidade])).rows[0];if(!antes)throw erro('Compromisso não encontrado.',404);if(antes.cancelado||antes.versao!==b.versao)throw erro('Compromisso alterado. Atualize a agenda.',409);}
+   if(eventoUnidade&&antes&&(antes.matricula_id||antes.lead_id))throw erro('Agendamento vinculado a aluno ou interessado não pode ser convertido em evento da academia.');
    let interessado;
    const leadId=antes?.lead_id||b.lead_id;
    if(leadId){interessado=(await c.query('SELECT * FROM leads_academia WHERE id=$1 AND academia_id=$2 FOR UPDATE',[leadId,q.unidade])).rows[0];if(!interessado)throw erro('Interessado não encontrado.',404);if(!antes&&['convertido','perdido'].includes(interessado.status))throw erro('Reabra o atendimento antes de agendar uma visita.');}
    if(b.matricula_id)await matricula(c,q,b.matricula_id);
    const conflito=await c.query(`SELECT id FROM agenda_academia WHERE academia_id=$1 AND NOT cancelado AND id<>COALESCE($2,0) AND inicio<$4 AND fim>$3 AND (lower(trim(responsavel))=lower(trim($5)) OR responsavel_id=$7 OR matricula_id=$6) UNION ALL SELECT t.id FROM turmas_academia t WHERE t.academia_id=$1 AND NOT t.cancelada AND t.inicio<$4 AND t.fim>$3 AND (lower(trim(t.professor))=lower(trim($5)) OR EXISTS(SELECT 1 FROM reservas_academia r WHERE r.turma_id=t.id AND NOT r.cancelada AND r.matricula_id=$6))`,[q.unidade,b.id||null,inicio,fim,responsavel,b.matricula_id||null,b.responsavel_id||null]);
    if(interessado&&(await c.query('SELECT id FROM agenda_academia WHERE academia_id=$1 AND lead_id=$2 AND NOT cancelado AND id<>COALESCE($3,0) AND inicio<$5 AND fim>$4',[q.unidade,interessado.id,b.id||null,inicio,fim])).rows.length)throw erro('Interessado já possui visita neste horário.',409);
-   if(conflito.rows.length)throw erro('O responsável ou aluno já tem um agendamento neste horário.',409);
+   if(!eventoUnidade&&conflito.rows.length)throw erro('O responsável ou aluno já tem um agendamento neste horário.',409);
    const valores=[q.unidade,b.matricula_id||null,titulo,b.tipo,responsavel,inicio,fim,observacao];
    const novo=(await c.query(antes?'UPDATE agenda_academia SET matricula_id=$2,titulo=$3,tipo=$4,responsavel=$5,inicio=$6,fim=$7,observacao=$8,versao=versao+1 WHERE academia_id=$1 AND id=$9 RETURNING *':'INSERT INTO agenda_academia(academia_id,matricula_id,titulo,tipo,responsavel,inicio,fim,observacao) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',antes?[...valores,b.id]:valores)).rows[0];
    await c.query('UPDATE agenda_academia SET responsavel_id=$2 WHERE id=$1',[novo.id,b.responsavel_id||null]);novo.responsavel_id=b.responsavel_id||null;

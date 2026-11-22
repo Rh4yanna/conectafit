@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {servidorIsolado} from '../scripts/teste-servidor-isolado.mjs';
 test('agenda: persistência, conflitos, edição, cancelamento e isolamento',async()=>{
  const app=await servidorIsolado();try{
+  await app.db.query(`ALTER TABLE ${app.schema}.agenda_academia DROP CONSTRAINT IF EXISTS agenda_academia_tipo_check`);
+  await app.db.query(`ALTER TABLE ${app.schema}.agenda_academia ADD CONSTRAINT agenda_academia_tipo_check CHECK (tipo IN ('compromisso','avaliacao','evento','feriado','manutencao','outro'))`);
   for(const id of [1,2])await app.db.query(`INSERT INTO ${app.schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,'Academia',$2,'teste','academia')`,[id,`${id}@teste.invalid`]);
   const tokens={1:await app.token(1),2:await app.token(2)};
   async function req(path,method='GET',body,id=1){const r=await fetch(app.base+'/api/operacao-academia'+path,{method,headers:{Authorization:`Bearer ${tokens[id]}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,d:await r.json()};}
@@ -26,5 +28,11 @@ test('agenda: persistência, conflitos, edição, cancelamento e isolamento',asy
   await app.db.query(`INSERT INTO ${app.schema}.turmas_academia(academia_id,nome,inicio,fim,vagas,local,professor) SELECT 1,'Turma '||n,$1,$2,5,'Sala','Professor' FROM generate_series(1,205) n`,[inicio,fim]);
   const todos=(await req(periodo)).d;assert.equal(todos.filter(r=>r.turma).length,205);
   assert.equal((await req('/agenda?mes=errado')).status,400);
+  const evento={titulo:'Feriado',tipo:'feriado',inicio,fim,observacao:'Horário especial'};
+  const feriado=await req('/agenda','POST',evento);assert.equal(feriado.status,200,JSON.stringify(feriado.d));assert.equal(feriado.d.tipo,'feriado');assert.equal(feriado.d.matricula_id,null);
+  assert.equal((await req('/agenda','POST',{...evento,titulo:'Evento simultâneo',tipo:'evento'})).status,200);
+  assert.equal((await req('/agenda','POST',{...evento,matricula_id:123})).status,400);
+  const revisado=await req('/agenda','POST',{...feriado.d,titulo:'Feriado municipal'});assert.equal(revisado.status,200);assert.equal(revisado.d.versao,2);
+  assert.equal((await req(`/agenda/${feriado.d.id}`,'DELETE',{versao:2,motivo:'Evento alterado'})).status,200);
  }finally{await app.fechar();}
 });

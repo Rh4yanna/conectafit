@@ -54,7 +54,7 @@ export default function OperacaoAcademia({unidade,inicial='inicio',titular=false
  {aba==='estoque'&&gestor&&<><EstoqueAcademia api={api} recarregar={carregar} revisaoExterna={dados}/><VendasAcademia api={api} recarregar={carregar} revisaoExterna={dados}/></>}
  {aba==='comercial'&&operador&&<ComercialAcademia api={api} matriculas={dados.matriculas} recarregar={carregar}/>}
  {aba==='fluxo'&&<><Caixa titulo="Controle de acesso / Catracas"><p>Nenhum equipamento conectado.</p><p>O registro de entradas e saídas abaixo é manual. A integração depende da configuração de um equipamento compatível.</p></Caixa><FluxoAcademia api={api} matriculas={dados.matriculas} recarregar={carregar}/></>}
- {aba==='agenda'&&<AgendaAcademia api={api} matriculas={dados.matriculas} operador={operador}/>}
+ {aba==='agenda'&&<AgendaAcademia api={api} operador={operador}/>}
  {aba==='turmas'&&<Turmas dados={dados} operador={operador} salvar={salvar}/>}
  {aba==='equipe'&&gestor&&<Equipe api={api} titular={titular}/>}
  {aba==='historico'&&gestor&&<Historico api={api}/>}
