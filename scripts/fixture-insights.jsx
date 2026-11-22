@@ -1,0 +1,5 @@
+import {createRoot} from 'react-dom/client';
+import InsightsAcademia from '../src/pages/academia/InsightsAcademia';
+import '../src/index.css';
+const api=async()=>({gerado_em:new Date().toISOString(),matriculas:{ativas:10,novas:4,novas_canceladas:1},situacoes:[{situacao:'ativa',quantidade:10},{situacao:'inativa',quantidade:1},{situacao:'cancelada',quantidade:1}],cancelamentos:1,caixa:[{mes:'2026-11',entradas:900,saidas:200}],caixa_diario:[{data:'2026-11-20',entradas:900,saidas:200}],mensalidades:{pendente:200,vencido:100},contas:{pendente:100},leads:{novos:5,convertidos:2},planos:[{nome:'Mensal',contratos:6}],frequencia:[{data:'2026-11-20',presencas:4}],movimento:[{dia_semana:5,hora:18,entradas:4}],base_historica:[{data:'2026-11-19',ativas:9},{data:'2026-11-20',ativas:10}],comparacao:{inicio:'2026-10-01',fim:'2026-10-31',atual:{alunos:4,receitas:900,presencas:4,cancelamentos:1},anterior:{alunos:2,receitas:600,presencas:3,cancelamentos:2}}});
+createRoot(document.getElementById('root')).render(<div style={{padding:12,background:'#0b1220'}}><InsightsAcademia api={api}/></div>);

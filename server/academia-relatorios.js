@@ -10,8 +10,10 @@ export function rotasRelatoriosAcademia(db){
    await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
    const v=[q.unidade,inicio,fim];
    const matriculas=(await c.query(`SELECT count(*)::int AS total,count(*) FILTER(WHERE situacao='ativa' AND (inicio IS NULL OR inicio<=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date) AND (termino IS NULL OR termino>=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date))::int AS ativas,count(*) FILTER(WHERE situacao='inativa')::int AS inativas,count(*) FILTER(WHERE (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3)::int AS novas,count(*) FILTER(WHERE (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3 AND situacao='cancelada')::int AS novas_canceladas FROM matriculas_academia WHERE academia_id=$1`,v)).rows[0];
+   const situacoes=(await c.query(`SELECT situacao,count(*)::int AS quantidade FROM matriculas_academia WHERE academia_id=$1 GROUP BY situacao ORDER BY situacao`,[q.unidade])).rows;
    const cancelamentos=(await c.query(`SELECT count(DISTINCT registro_id)::int AS total FROM auditoria_academia WHERE academia_id=$1 AND entidade='matricula' AND depois->>'situacao'='cancelada' AND antes->>'situacao' IS DISTINCT FROM 'cancelada' AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3`,v)).rows[0].total;
    const caixa=(await c.query(`SELECT to_char(data,'YYYY-MM') AS mes,COALESCE(sum(valor) FILTER(WHERE tipo='receita'),0) AS entradas,COALESCE(sum(valor) FILTER(WHERE tipo='despesa'),0) AS saidas FROM lancamentos_academia WHERE academia_id=$1 AND data BETWEEN $2 AND $3 GROUP BY mes ORDER BY mes`,v)).rows;
+   const caixa_diario=(await c.query(`SELECT data::text AS data,COALESCE(sum(valor) FILTER(WHERE tipo='receita'),0) AS entradas,COALESCE(sum(valor) FILTER(WHERE tipo='despesa'),0) AS saidas FROM lancamentos_academia WHERE academia_id=$1 AND data BETWEEN $2 AND $3 GROUP BY data ORDER BY data`,v)).rows;
    const mensalidades=(await c.query(`SELECT count(*)::int AS quantidade,COALESCE(sum(c.valor-c.desconto),0) AS previsto,COALESCE(sum(c.recebido),0) AS recebido,COALESCE(sum(c.valor-c.desconto-c.recebido),0) AS pendente,COALESCE(sum(c.valor-c.desconto-c.recebido) FILTER(WHERE c.vencimento<(NOW() AT TIME ZONE 'America/Sao_Paulo')::date),0) AS vencido FROM mensalidades_academia c JOIN matriculas_academia m ON m.id=c.matricula_id WHERE m.academia_id=$1 AND c.vencimento BETWEEN $2 AND $3`,v)).rows[0];
    const contas=(await c.query('SELECT COALESCE(sum(valor-pago),0) AS pendente FROM contas_pagar_academia WHERE academia_id=$1 AND vencimento BETWEEN $2 AND $3 AND NOT cancelada',v)).rows[0];
    const leads=(await c.query(`SELECT count(*)::int AS novos,count(*) FILTER(WHERE status='convertido')::int AS convertidos FROM leads_academia WHERE academia_id=$1 AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3`,v)).rows[0];
@@ -23,11 +25,13 @@ export function rotasRelatoriosAcademia(db){
    const consolidar=async(de,ate)=>(await c.query(`SELECT
     (SELECT count(*)::int FROM matriculas_academia WHERE academia_id=$1 AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3) AS alunos,
     (SELECT COALESCE(sum(CASE WHEN tipo='receita' THEN valor ELSE -valor END),0) FROM lancamentos_academia WHERE academia_id=$1 AND data BETWEEN $2 AND $3) AS caixa,
+    (SELECT COALESCE(sum(valor) FILTER(WHERE tipo='receita'),0) FROM lancamentos_academia WHERE academia_id=$1 AND data BETWEEN $2 AND $3) AS receitas,
+    (SELECT count(DISTINCT registro_id)::int FROM auditoria_academia WHERE academia_id=$1 AND entidade='matricula' AND depois->>'situacao'='cancelada' AND antes->>'situacao' IS DISTINCT FROM 'cancelada' AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3) AS cancelamentos,
     (SELECT count(*)::int FROM presencas_academia WHERE academia_id=$1 AND NOT cancelada AND data BETWEEN $2 AND $3) AS presencas,
     (SELECT count(*)::int FROM ciclos_matricula c JOIN matriculas_academia m ON m.id=c.matricula_id WHERE m.academia_id=$1 AND c.inicio BETWEEN $2 AND $3) AS contratos`,[q.unidade,de,ate])).rows[0];
    const comparacao={inicio:anteriorInicio,fim:anteriorFim,atual:await consolidar(inicio,fim),anterior:await consolidar(anteriorInicio,anteriorFim)};
    const base_historica=await baseHistorica(c,q.unidade,inicio,fim);
-   return {base_historica,comparacao,inicio,fim,gerado_em:new Date().toISOString(),matriculas,cancelamentos,caixa,mensalidades,contas,leads,planos,frequencia,movimento};
+   return {base_historica,comparacao,inicio,fim,gerado_em:new Date().toISOString(),matriculas,situacoes,cancelamentos,caixa,caixa_diario,mensalidades,contas,leads,planos,frequencia,movimento};
   }));
  }));return r;
 }

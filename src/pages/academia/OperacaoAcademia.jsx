@@ -3,7 +3,7 @@ import AcaoModalAcademia from './AcaoModalAcademia';
 import NavegacaoAcademia from './NavegacaoAcademia';
 import InicioAcademia from './InicioAcademia';
 import {areasPermitidas} from './navegacao-academia';
-import RelatoriosAcademia from './RelatoriosAcademia';
+import RelatoriosAcademia from './InsightsAcademia';
 import ContasPagarAcademia from './ContasPagarAcademia';
 import EstoqueAcademia from './EstoqueAcademia';
 import ComercialAcademia from './ComercialAcademia';
