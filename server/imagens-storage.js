@@ -61,6 +61,11 @@ export function servirImagem(db, storage) {return async(q,s)=>{
   const propria=String(item.dono_id)===String(q.usuario.id);
   const catalogo=['perfil','galeria'].includes(item.finalidade)&&['personal','nutri','academia'].includes(item.tipo_usuario)&&q.usuario.tipo_usuario==='aluno';
   if(!propria&&!catalogo&&!await vinculoImagem(db,q.usuario,item.dono_id,item.finalidade))throw erro('Imagem não encontrada.',404);
+  if(!propria&&q.usuario.tipo_usuario==='nutri'&&item.finalidade==='evolucao'){
+   const ref=`/api/midia/${item.id}`;
+   const autorizado=await db.query(`SELECT 1 FROM fotos_evolucao WHERE aluno_id=$1 AND $2 IN (${camposEvolucao.join(',')}) AND (autor_personal_id IS NULL OR autor_personal_id=$3)`,[item.dono_id,ref,q.usuario.id]);
+   if(!autorizado.rowCount)throw erro('Imagem não encontrada.',404);
+  }
   if(!storage||item.bucket!==storage.bucket)throw erro('Armazenamento de imagens indisponível.',503);
   const bytes=await storage.ler(item.caminho);
   s.set({'Content-Type':item.mime,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}).send(bytes);
@@ -73,8 +78,8 @@ export function fluxoImagem(path, metodo, usuario, body) {
  const perfil={ '/api/aluno/perfil':'aluno','/api/personal/perfil':'personal','/api/nutri/perfil/me':'nutri','/api/academia/perfil':'academia'}[path];
  if(perfil){if(usuario.tipo_usuario!==perfil)throw erro('Perfil não autorizado.',403);return {dono,campos:[[perfil==='aluno'?'foto_url':'foto_perfil','perfil']],galeria:perfil==='academia',limite:650*1024};}
  if(path==='/api/aluno/fotos'){if(usuario.tipo_usuario!=='aluno')throw erro('Perfil não autorizado.',403);return {dono,campos:camposEvolucao.map(k=>[k,'evolucao']),limite:650*1024};}
- const p=/^\/api\/personal\/alunos\/(\d+)\/fotos$/.exec(path);
- if(p){if(usuario.tipo_usuario!=='personal')throw erro('Perfil não autorizado.',403);if(body.consentimento!==true)throw erro('Autorização do aluno obrigatória.');return {dono:p[1],profissional:true,campos:camposEvolucao.map(k=>[k,'evolucao']),limite:650*1024};}
+ const p=/^\/api\/(personal|nutri-evolucao)\/alunos\/(\d+)\/fotos$/.exec(path);
+ if(p){if(usuario.tipo_usuario!==(p[1]==='personal'?'personal':'nutri'))throw erro('Perfil não autorizado.',403);if(body.consentimento!==true)throw erro('Autorização do aluno obrigatória.');return {dono:p[2],profissional:true,campos:camposEvolucao.map(k=>[k,'evolucao']),limite:650*1024};}
  if(/^\/api\/(alimentacao|dietas)\/diario(?:\/\d+)?$/.test(path)){if(usuario.tipo_usuario!=='aluno')throw erro('Perfil não autorizado.',403);return {dono,campos:[['foto','refeicao']],limite:1572864};}
  return null;
 }

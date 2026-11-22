@@ -13,6 +13,8 @@ import {rotasQualidade,auditarAtividade,validarPerfilCompartilhado} from './qual
 import {rotasGestao,convitePublico} from './gestao-profissional.js';
 import {rotasAcompanhamento} from './acompanhamento-personal.js';
 import {rotasPersonal,enviarDemonstracao,servirVideo} from './personal.js';
+import {gestaoPainelPersonal} from './gestao-painel-personal.js';
+import {evolucaoPersonal} from './evolucao-personal.js';
 import {rotasRotina,criarAtendimento,alterarAtendimento} from './rotina.js';
 import { rotasBusca, catalogoServicos, filtrarServicos, solicitarConexao, encerrarConexao } from './servicos.js';
 import { rotasEvolucao, resumoMetas, salvarMetas, resumoHidratacao, dataValida } from './evolucao.js';
@@ -72,10 +74,11 @@ app.post('/api/personal/demonstracoes', autenticar, exigirPerfil('personal'), ra
 app.use("/api/aluno/fotos", express.json({limit:"4mb",strict:true}));
 app.use("/api/alimentacao/diario", express.json({limit:"3mb",strict:true}));
 app.use(/^\/api\/personal\/alunos\/\d+\/fotos$/, express.json({limit:'4mb',strict:true}));
+app.use(/^\/api\/nutri-evolucao\/alunos\/\d+\/fotos$/, express.json({limit:'4mb',strict:true}));
 app.use(express.json({ limit: "1mb", strict: true }));
 const prepararImagens = processarImagens(db, imagensStorage);
 app.use((req,res,next)=>{
- if(!['POST','PUT','PATCH'].includes(req.method)||!/^\/api\/(aluno\/(perfil|fotos)|personal\/(perfil|alunos\/\d+\/fotos)|nutri\/perfil\/me|academia\/perfil|(alimentacao|dietas)\/diario(?:\/\d+)?)$/.test(req.path.toLowerCase().replace(/\/$/,'')))return next();
+ if(!['POST','PUT','PATCH'].includes(req.method)||!/^\/api\/(aluno\/(perfil|fotos)|personal\/(perfil|alunos\/\d+\/fotos)|nutri-evolucao\/alunos\/\d+\/fotos|nutri\/perfil\/me|academia\/perfil|(alimentacao|dietas)\/diario(?:\/\d+)?)$/.test(req.path.toLowerCase().replace(/\/$/,'')))return next();
  return autenticar(req,res,()=>prepararImagens(req,res,next));
 });
 app.get('/api/midia/:id', autenticar, servirImagem(db, imagensStorage));
@@ -559,6 +562,8 @@ app.get('/api/convites/:token', convitePublico(db));
 app.use('/api/gestao', autenticar, exigirPerfil('aluno','personal','nutri'), rotasGestao(db));
 app.use('/api/nutricao', autenticar, exigirPerfil('aluno','nutri'), rotasNutricao(db));
 app.use('/api/personal', autenticar, exigirPerfil('personal'), rotasPersonal(db));
+app.use('/api/nutri-financeiro', autenticar, exigirPerfil('nutri'), gestaoPainelPersonal(db,{tipo:'nutri'}));
+app.use('/api/nutri-evolucao', autenticar, exigirPerfil('nutri'), evolucaoPersonal(db,{tipo:'nutri'}));
 app.get('/api/demonstracoes/:id/video', autenticar, exigirPerfil('aluno','personal'), (q,s)=>servirVideo(db,q,s));
 app.use('/api/exercicios', autenticar, exigirPerfil('aluno','personal'), rotasBiblioteca());
 app.get("/api/treinos", autenticar, exigirPerfil("aluno"), async (req, res) => {
@@ -714,7 +719,7 @@ app.get("/api/profissional/alunos", autenticar, exigirPerfil("personal", "nutri"
 
 app.get("/api/profissional/alunos/:id", autenticar, exigirPerfil("personal", "nutri"), async (req,res)=>{
   const personal=req.usuario.tipo_usuario==="personal", tabela=personal?"conexoes_alunos":"conexoes_nutri", coluna=personal?"personal_id":"nutri_id";
-  try{const acesso=await db.query(`SELECT permite_medidas,permite_fotos,permite_metas,${personal?'permite_treinos':'permite_dietas'} AS permite_principal FROM ${tabela} WHERE ${coluna}=$1 AND aluno_id=$2 AND status='aceito' AND ativo`,[req.usuario.id,req.params.id]);if(!acesso.rows.length)return res.status(404).json({message:"Aluno não conectado."});const p=acesso.rows[0];const usuario=await db.query("SELECT id,nome,email,telefone,cidade,foto_url FROM usuarios WHERE id=$1",[req.params.id]);const dados={usuario:usuario.rows[0],permissoes:p};if(p.permite_medidas)dados.medidas=(await db.query("SELECT * FROM medidas_aluno WHERE aluno_id=$1 ORDER BY data_medicao DESC",[req.params.id])).rows;if(p.permite_fotos)dados.fotos=(await db.query("SELECT * FROM fotos_evolucao WHERE aluno_id=$1 ORDER BY data_registro DESC",[req.params.id])).rows;if(p.permite_metas)dados.metas=(await db.query("SELECT * FROM metas_aluno WHERE aluno_id=$1",[req.params.id])).rows[0]||null;if(p.permite_principal)dados.planos=(await db.query(personal?"SELECT * FROM treinos WHERE usuario_id=$1 ORDER BY criado_em DESC":"SELECT * FROM planos_alimentares WHERE aluno_id=$1 ORDER BY criado_em DESC",[req.params.id])).rows;return res.json(dados)}catch(error){console.error("ERRO ALUNO PROF:",error.code || 'erro interno');return res.status(500).json({message:"Erro ao carregar aluno."})}
+  try{const acesso=await db.query(`SELECT permite_medidas,permite_fotos,permite_metas,${personal?'permite_treinos':'permite_dietas'} AS permite_principal FROM ${tabela} WHERE ${coluna}=$1 AND aluno_id=$2 AND status='aceito' AND ativo`,[req.usuario.id,req.params.id]);if(!acesso.rows.length)return res.status(404).json({message:"Aluno não conectado."});const p=acesso.rows[0];const usuario=await db.query("SELECT id,nome,email,telefone,cidade,foto_url FROM usuarios WHERE id=$1",[req.params.id]);const dados={usuario:usuario.rows[0],permissoes:p};if(p.permite_medidas)dados.medidas=(await db.query("SELECT * FROM medidas_aluno WHERE aluno_id=$1 AND ($3::boolean OR autor_personal_id IS NULL OR autor_personal_id=$2) ORDER BY data_medicao DESC",[req.params.id,req.usuario.id,personal])).rows;if(p.permite_fotos)dados.fotos=(await db.query("SELECT * FROM fotos_evolucao WHERE aluno_id=$1 AND ($3::boolean OR autor_personal_id IS NULL OR autor_personal_id=$2) ORDER BY data_registro DESC",[req.params.id,req.usuario.id,personal])).rows;if(p.permite_metas)dados.metas=(await db.query("SELECT * FROM metas_aluno WHERE aluno_id=$1",[req.params.id])).rows[0]||null;if(p.permite_principal)dados.planos=(await db.query(personal?"SELECT * FROM treinos WHERE usuario_id=$1 ORDER BY criado_em DESC":"SELECT * FROM planos_alimentares WHERE aluno_id=$1 AND (nutri_id IS NULL OR nutri_id=$2) ORDER BY criado_em DESC",personal?[req.params.id]:[req.params.id,req.usuario.id])).rows;return res.json(dados)}catch(error){console.error("ERRO ALUNO PROF:",error.code || 'erro interno');return res.status(500).json({message:"Erro ao carregar aluno."})}
 });
 
 app.post("/api/profissional/alunos/:id/planos", autenticar, exigirPerfil("personal","nutri"), async(req,res)=>{

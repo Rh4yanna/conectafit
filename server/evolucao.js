@@ -113,8 +113,8 @@ export function rotasEvolucao(db){
   r.get('/comentarios',aluno,rota(async(q,s)=>{const offset=Number(q.query.offset||0);if(!Number.isSafeInteger(offset)||offset<0)throw falha('Página inválida.');const dados=await db.query('SELECT * FROM comentarios_evolucao WHERE aluno_id=$1 ORDER BY criado_em DESC,id DESC LIMIT 21 OFFSET $2',[q.usuario.id,offset]);s.json({comentarios:dados.rows.slice(0,20),tem_mais:dados.rows.length>20});}));
   r.get('/profissional/:aluno',rota(async(q,s)=>{
     const p=await acessoProfissional(db,q.usuario,q.params.aluno),dados={permissoes:p};
-    if(p.permite_medidas)dados.medidas=(await db.query('SELECT m.*,m.data_medicao::text FROM medidas_aluno m WHERE aluno_id=$1 ORDER BY m.data_medicao DESC,m.id DESC',[q.params.aluno])).rows;
-    if(p.permite_fotos)dados.fotos=(await db.query('SELECT f.*,f.data_registro::text FROM fotos_evolucao f WHERE aluno_id=$1 ORDER BY f.data_registro DESC,f.id DESC',[q.params.aluno])).rows;
+    if(p.permite_medidas)dados.medidas=(await db.query('SELECT m.*,m.data_medicao::text FROM medidas_aluno m WHERE aluno_id=$1 AND ($3::boolean=false OR m.autor_personal_id IS NULL OR m.autor_personal_id=$2) ORDER BY m.data_medicao DESC,m.id DESC',[q.params.aluno,q.usuario.id,q.usuario.tipo_usuario==='nutri'])).rows;
+    if(p.permite_fotos)dados.fotos=(await db.query('SELECT f.*,f.data_registro::text FROM fotos_evolucao f WHERE aluno_id=$1 AND ($3::boolean=false OR f.autor_personal_id IS NULL OR f.autor_personal_id=$2) ORDER BY f.data_registro DESC,f.id DESC',[q.params.aluno,q.usuario.id,q.usuario.tipo_usuario==='nutri'])).rows;
     if(p.permite_metas){
       const resumo=await resumoMetas(db,q.params.aluno);
       dados.metas={meta:resumo.meta,progresso:resumo.progresso};
@@ -131,7 +131,8 @@ export function rotasEvolucao(db){
     if(!Object.hasOwn(permissoes,alvo_tipo)||!id(alvo_id)||!p[permissoes[alvo_tipo]])throw falha('O aluno não autorizou o acesso a este registro.',403);
     if(!uuid(q.body.chave_cliente))throw falha('Identificador inválido.');const comentario=texto(q.body.comentario,3000,true);
     const tabelas={medida:['medidas_aluno','id','data_medicao'],foto:['fotos_evolucao','id','data_registro'],objetivo:['objetivos_aluno','id','titulo'],metas:['revisoes_metas','versao','versao']};const [t,chave,ref]=tabelas[alvo_tipo];
-    const alvo=await db.query(`SELECT ${ref}::text AS referencia FROM ${t} WHERE ${chave}=$1 AND aluno_id=$2`,[alvo_id,q.params.aluno]);if(!alvo.rows.length)throw falha('Registro não encontrado.',404);
+    const restringir=q.usuario.tipo_usuario==='nutri'&&['medida','foto'].includes(alvo_tipo);
+    const alvo=await db.query(`SELECT ${ref}::text AS referencia FROM ${t} WHERE ${chave}=$1 AND aluno_id=$2${restringir?' AND (autor_personal_id IS NULL OR autor_personal_id=$3)':''}`,restringir?[alvo_id,q.params.aluno,q.usuario.id]:[alvo_id,q.params.aluno]);if(!alvo.rows.length)throw falha('Registro não encontrado.',404);
     const dados=await db.query(`INSERT INTO comentarios_evolucao(aluno_id,profissional_id,autor_nome,autor_tipo,alvo_tipo,alvo_id,referencia,comentario,chave_cliente) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(profissional_id,chave_cliente) DO NOTHING RETURNING *`,[q.params.aluno,q.usuario.id,q.usuario.nome||'Profissional',q.usuario.tipo_usuario,alvo_tipo,alvo_id,alvo.rows[0].referencia,comentario,q.body.chave_cliente]);
     s.status(dados.rows.length?201:200).json(dados.rows[0]||(await db.query('SELECT * FROM comentarios_evolucao WHERE profissional_id=$1 AND chave_cliente=$2',[q.usuario.id,q.body.chave_cliente])).rows[0]);
   }));

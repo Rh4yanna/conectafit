@@ -1,3 +1,4 @@
+import {QuestionariosAluno} from '../../components/alimentacao/QuestionariosNutri';
 import ModalAlimentacao from '../../components/alimentacao/ModalAlimentacao';
 import MensagemTemporaria from '../../components/MensagemTemporaria';
 import {RetornosNutri} from '../../components/alimentacao/AcompanhamentoNutri';
@@ -17,5 +18,5 @@ export default function MinhaDieta(){
     <details className="border border-neutral-500/25 rounded-2xl p-4"><summary className="font-semibold cursor-pointer">Minhas dúvidas ao nutricionista</summary><DuvidasAlimentares atualizacao={atualizacao}/></details>
     {registro&&<FormRegistroAlimentar registro={registro} onClose={()=>setRegistro(null)} onSalvo={()=>{setRegistro(null);setAtualizacao(n=>n+1);setMensagem('Refeição salva!');}}/>}
     {duvida&&<FormDuvidaAlimentar refeicao={duvida} onClose={()=>setDuvida(null)} onSalvo={()=>{setDuvida(null);setAtualizacao(n=>n+1);setMensagem('Dúvida enviada ao nutricionista!');}}/>}
-  <RetornosNutri compacto/></>}</main>;
+  <QuestionariosAluno/><RetornosNutri compacto/></>}</main>;
 }

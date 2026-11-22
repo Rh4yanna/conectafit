@@ -13,7 +13,7 @@ const menus = {
   nutri: [['inicio','Início'],['perfil','Meu perfil'],['pacientes','Pacientes'],['agenda','Agenda'],['solicitacoes','Solicitações']],
   academia: [['inicio','Início'],['perfil','Perfil da academia'],['alunos','Alunos'],['planos','Planos'],['pagamentos','Financeiro'],['presenca','Presença'],['turmas','Turmas'],['equipe','Equipe'],['visitas','Visitas']],
 };
-const icones = {dashboard:Home,inicio:Home,perfil:User,alunos:Users,pacientes:Users,treinos:Dumbbell,biblioteca:Dumbbell,dietas:Utensils,agenda:Calendar,avisos:Bell,metas:Target,medidas:HeartPulse,avaliacoes:HeartPulse,fotos:Camera,servicos:Compass,conexoes:Users,rotina:Activity,anamnese:ClipboardList,cobrancas:Wallet,pagamentos:Wallet,financeiro:Wallet,comunicados:MessageSquare,solicitacoes:Users,planos:ClipboardList,presenca:DoorOpen,fluxo:DoorOpen,turmas:Users,equipe:Users,visitas:Compass,comercial:Compass,estoque:Package,vendas:Wallet,contas:Wallet,relatorios:BarChart3,estrutura:Building2};
+const icones = {dashboard:Home,inicio:Home,perfil:User,alunos:Users,pacientes:Users,treinos:Dumbbell,biblioteca:Dumbbell,dietas:Utensils,agenda:Calendar,avisos:Bell,metas:Target,medidas:HeartPulse,avaliacoes:HeartPulse,fotos:Camera,servicos:Compass,conexoes:Users,rotina:Activity,anamnese:ClipboardList,feedbacks:MessageSquare,evolucao:Camera,cobrancas:Wallet,pagamentos:Wallet,financeiro:Wallet,comunicados:MessageSquare,solicitacoes:Users,planos:ClipboardList,presenca:DoorOpen,fluxo:DoorOpen,turmas:Users,equipe:Users,visitas:Compass,comercial:Compass,estoque:Package,vendas:Wallet,contas:Wallet,relatorios:BarChart3,estrutura:Building2};
 
 export default function Cabecalho({perfil, nome, equipe=false, menuItens}) {
   const {temaEscuro, alternarTema}=useTheme();

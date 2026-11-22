@@ -11,6 +11,7 @@ import GerenciarPerfilNutri from './GerenciarPerfilNutri';
 import SolicitacoesConexaoNutri from './SolicitacoesConexaoNutri';
 import PacientesAtivos from './PacientesAtivos';
 import AgendaPersonal from '../personal/AgendaPersonal';
+import ModuloPacientesNutri from '../../components/alimentacao/ModuloPacientesNutri';
 import { 
   Users, 
   PlusCircle, 
@@ -26,7 +27,7 @@ import { apiFetch } from '../../config/api';
 
 export default function DashboardNutri() {
   const [parametros,setParametros]=useSearchParams();
-  const abaAtiva=['inicio','perfil','agenda','solicitacoes','pacientes','avisos'].includes(parametros.get('aba'))?parametros.get('aba'):'inicio';
+  const abaAtiva=['inicio','perfil','agenda','solicitacoes','pacientes','avisos','planos','anamnese','evolucao','avaliacoes','feedbacks','cobrancas','prontuario'].includes(parametros.get('aba'))?parametros.get('aba'):'inicio';
   const setAbaAtiva=v=>setParametros({aba:v});
   const {temaEscuro} = useTheme();
   const [indicadores,setIndicadores]=useState({});
@@ -54,7 +55,7 @@ export default function DashboardNutri() {
     <div data-menu-inferior className={`min-h-screen ${temaEscuro ? 'bg-black text-white' : 'bg-gray-100 text-gray-900 tema-claro'} font-sans antialiased pb-28 flex flex-col`}>
       
       {/* NAVBAR */}
-      <Cabecalho perfil="nutri" nome={nomeUsuario}/>
+      <Cabecalho perfil="nutri" nome={nomeUsuario} menuItens={[["inicio","Início"],["pacientes","Meus pacientes"],["planos","Planos alimentares"],["anamnese","Anamnese"],["avaliacoes","Avaliações"],["evolucao","Evolução e fotos"],["feedbacks","Feedbacks"],["cobrancas","Cobranças"],["agenda","Agenda"],["prontuario","Prontuário nutricional"],["solicitacoes","Solicitações"],["perfil","Meu perfil"]]}/>
 
       <main className="w-full max-w-none px-5 lg:px-10 pt-8 space-y-8 flex-1">
         
@@ -140,6 +141,7 @@ export default function DashboardNutri() {
 
         {/* PACIENTES ATIVOS (A-Z) */}
         {abaAtiva === 'pacientes' && <PacientesAtivos />}
+        {['planos','anamnese','evolucao','avaliacoes','feedbacks','cobrancas','prontuario'].includes(abaAtiva)&&<ModuloPacientesNutri key={abaAtiva} modulo={abaAtiva}/>}
 
       </main>
 

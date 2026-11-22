@@ -4,14 +4,23 @@ import express from 'express';
 import sharp from 'sharp';
 import {bancoVazioTeste} from '../scripts/banco-vazio-teste.mjs';
 import {aplicarMigracoes} from './migracoes.js';
-import {validarImagem,processarImagens,servirImagem,imagemReferenciada,gravarImagem} from './imagens-storage.js';
+import {validarImagem,processarImagens,servirImagem,imagemReferenciada,gravarImagem,fluxoImagem} from './imagens-storage.js';
 import {configuracaoBanco} from './configuracao-banco.js';
+import {readdir} from 'node:fs/promises';
+
+test('envio de fotos da nutricionista exige perfil e confirmação de autorização',()=>{
+ const caminho='/api/nutri-evolucao/alunos/10/fotos';
+ assert.equal(fluxoImagem(caminho,'POST',{id:2,tipo_usuario:'nutri'},{consentimento:true}).dono,'10');
+ assert.throws(()=>fluxoImagem(caminho,'POST',{id:2,tipo_usuario:'nutri'},{consentimento:false}));
+ assert.throws(()=>fluxoImagem(caminho,'POST',{id:2,tipo_usuario:'personal'},{consentimento:true}));
+});
 
 test('banco vazio, imagens: upload, leitura autorizada, troca, remoção e falhas',async()=>{
  const app=await bancoVazioTeste();let server;
  try {
   await aplicarMigracoes(app.db,{log:()=>{}});
-  assert.equal(Number((await app.db.query('SELECT count(*) FROM migrations_conectafit')).rows[0].count),56);
+  const migracoes=(await readdir(new URL('./migrations/',import.meta.url))).filter(n=>n.endsWith('.sql'));
+  assert.equal(Number((await app.db.query('SELECT count(*) FROM migrations_conectafit')).rows[0].count),migracoes.length);
   assert.equal((await app.db.query("SELECT count(*) FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND contype='f'")).rows[0].count>100,true);
   for(const [id,tipo] of [[1,'aluno'],[2,'aluno'],[3,'personal'],[4,'nutri'],[5,'academia']])await app.db.query('INSERT INTO usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,$2,$3,$4,$5)',[id,`Teste ${id}`,`imagem${id}@example.invalid`,'hash-ficticio',tipo]);
   const files=new Map();let falhar=false;
