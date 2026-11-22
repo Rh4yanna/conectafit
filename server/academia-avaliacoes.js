@@ -3,6 +3,12 @@ import {rota,permitir,erro,texto,tx,matricula,data,chave,auditar} from './academ
 const limites={peso:500,altura:250,cintura:300,quadril:300,torax:300,braco_direito:150,braco_esquerdo:150,coxa_direita:200,coxa_esquerda:200};
 export function rotasAvaliacoesAcademia(db){
  const r=Router();
+ r.get('/feedbacks-academia',rota(async(q,s)=>{
+  permitir(q,'gestor','professor');
+  const offset=Number(q.query.offset||0);if(!Number.isSafeInteger(offset)||offset<0)throw erro('Página inválida.');
+  const rows=(await db.query(`SELECT f.id,f.nota,f.comentario,f.foto_url,f.criado_em,m.aluno_nome FROM feedbacks_academia f JOIN matriculas_academia m ON m.id=f.matricula_id AND m.academia_id=f.academia_id WHERE f.academia_id=$1 ORDER BY f.criado_em DESC,f.id DESC LIMIT 21 OFFSET $2`,[q.unidade,offset])).rows;
+  s.json({feedbacks:rows.slice(0,20),tem_mais:rows.length>20});
+ }));
  r.use('/avaliacoes',(q,s,n)=>{try{permitir(q,'gestor','professor');n();}catch(e){s.status(e.status).json({message:e.message});}});
  r.get('/avaliacoes',rota(async(q,s)=>{await matricula(db,q,q.query.matricula_id);s.json((await db.query(`SELECT a.*,(SELECT id FROM avaliacoes_academia n WHERE n.corrige_id=a.id) AS substituida_por,u.nome AS autor FROM avaliacoes_academia a JOIN usuarios u ON u.id=a.autor_id WHERE a.academia_id=$1 AND a.matricula_id=$2 ORDER BY a.data DESC,a.id DESC`,[q.unidade,q.query.matricula_id])).rows);}));
  r.post('/avaliacoes',rota(async(q,s)=>{
