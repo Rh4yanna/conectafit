@@ -103,6 +103,10 @@ html.dark .app-visual :is(.text-emerald-500,.text-green-500) { color:#6ee7b7; }
 .app-visual .acao-secundaria:hover { border-color:var(--fit-blue); background:var(--app-inset); }
 .app-visual :is(button,a,input,select,textarea) { transition:background-color .16s,border-color .16s,box-shadow .16s; }
 .app-visual .fit-stat { position:relative; padding:20px; border-radius:var(--fit-radius); background:var(--app-card); border:1px solid var(--app-border); box-shadow:var(--app-shadow); }
+.app-visual .cobranca-recebida { background:#e4f6e9; border-color:#75c98a; }
+.app-visual .cobranca-pendente { background:#fdeaea; border-color:#e99a9a; }
+html.dark .app-visual .cobranca-recebida { background:#173e2a; border-color:#3b8c59; }
+html.dark .app-visual .cobranca-pendente { background:#4a2228; border-color:#a7565f; }
 .app-visual .fit-stat > svg { padding:8px; width:38px; height:38px; border-radius:11px; background:#087bff15; color:var(--app-accent); }
 .app-visual button.fit-stat > svg { margin-bottom:12px; }
 .app-visual button.fit-stat > span { display:block; }
