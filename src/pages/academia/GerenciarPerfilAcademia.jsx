@@ -20,6 +20,7 @@ export default function GerenciarPerfilAcademia() {
   });
 
   const [fotos, setFotos] = useState([]);
+  const [endereco,setEndereco]=useState(null),[enderecoAlterado,setEnderecoAlterado]=useState(false),[erroEndereco,setErroEndereco]=useState('');
   const [salvo, setSalvo] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -64,6 +65,8 @@ export default function GerenciarPerfilAcademia() {
     carregarPerfil();
   }, [usuarioLogado?.id,tentativa]);
 
+  useEffect(()=>{let ativo=true;apiFetch('/servico/localizacao').then(async r=>{if(!r.ok)throw new Error('Não foi possível carregar o endereço.');return r.json();}).then(d=>{if(ativo){setEndereco(d||{cidade:'',estado:'',rua:'',numero:'',latitude:null,longitude:null});setErroEndereco('');}}).catch(e=>{if(ativo)setErroEndereco(e.message);});return()=>{ativo=false;};},[tentativa]);
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -88,6 +91,7 @@ export default function GerenciarPerfilAcademia() {
     if(salvando||!pronto)return;
     setSalvando(true);setErro('');setSalvo(false);
 
+    let enderecoSalvo=false;
     const payload = {
       usuario_id: usuarioLogado.id,
       ...form,
@@ -95,6 +99,13 @@ export default function GerenciarPerfilAcademia() {
     };
 
     try {
+      if(enderecoAlterado){
+        const r=await apiFetch('/servico/localizacao',{method:'PUT',body:JSON.stringify(endereco)});
+        const d=await r.json();if(!r.ok)throw new Error(d.message||'Não foi possível salvar o endereço.');
+        enderecoSalvo=true;setEndereco(d);setEnderecoAlterado(false);
+        payload.cidade=d.cidade;payload.endereco=[d.rua,d.numero].filter(Boolean).join(', ');
+        setForm(prev=>({...prev,cidade:payload.cidade,endereco:payload.endereco}));
+      }
       const res = await apiFetch('/academia/perfil', {
         method: 'POST',
         body: JSON.stringify(payload)
@@ -104,10 +115,10 @@ export default function GerenciarPerfilAcademia() {
         setSalvo(true);
         
       } else {
-        setErro((await res.json()).message||'Não foi possível salvar o perfil.');
+        setErro((enderecoSalvo?'Endereço salvo. ':'')+((await res.json()).message||'Não foi possível salvar o perfil.'));
       }
     } catch (err) {
-      setErro(err.message);
+      setErro((enderecoSalvo?'Endereço salvo. ':'')+err.message);
     } finally {
       setSalvando(false);
     }
@@ -122,5 +133,5 @@ export default function GerenciarPerfilAcademia() {
     );
   }
 
-  return <PerfilAcademiaFormulario form={form} setForm={setForm} fotos={fotos} erro={erro} salvo={salvo} pronto={pronto} ocupado={salvando||lendoFoto} tentar={()=>setTentativa(n=>n+1)} alterar={handleChange} enviar={handleSubmit} enviarFoto={handleImageUpload} removerFoto={handleRemoveFoto}/>;
+  return <PerfilAcademiaFormulario form={form} setForm={setForm} endereco={endereco} erroEndereco={erroEndereco} alterarEndereco={(k,v)=>{setEndereco(e=>({...e,[k]:v,latitude:null,longitude:null}));setEnderecoAlterado(true);}} fotos={fotos} erro={erro} salvo={salvo} pronto={pronto} ocupado={salvando||lendoFoto} tentar={()=>setTentativa(n=>n+1)} alterar={handleChange} enviar={handleSubmit} enviarFoto={handleImageUpload} removerFoto={handleRemoveFoto}/>;
 }
