@@ -53,6 +53,8 @@ test('academia: contratos, financeiro concorrente, equipe, importação, presen�
  const pub=await fetch(app.base+'/api/servicos/academia/1',{headers:{Authorization:`Bearer ${tokens[5]}`}});assert.equal(pub.status,200);const publico=await pub.json();assert.equal(publico.planos_comerciais[0].valor,150);assert.equal(publico.estrutura.ambientes,'Sala ampla');
  m=await getM();await ok(`/matriculas/${m.id}`,'PATCH',{versao:m.versao,situacao:'trancada',motivo:'Viagem do aluno'});assert.equal((await req('/presencas','POST',{matricula_id:m.id,data:hoje},4)).status,400);assert.equal((await req(`/matriculas/${m.id}`,'PATCH',{versao:m.versao,situacao:'ativa',motivo:'Reenvio antigo'})).status,409);m=await getM();await ok(`/matriculas/${m.id}`,'PATCH',{versao:m.versao,situacao:'cancelada',motivo:'Encerramento solicitado'});assert.equal((await getM()).situacao,'cancelada');
  const historico=await ok(`/historico?entidade=matricula&id=${m.id}`);assert.ok(historico.some(h=>h.acao==='renovar'&&String(h.autor_id)==='1'));
+ const historicoFiltrado=await ok(`/historico?inicio=${hoje}&fim=${hoje}&autor=Pessoa&acao=renovar`);assert.ok(historicoFiltrado.some(h=>h.acao==='renovar'));assert.ok(historicoFiltrado.every(h=>h.acao.includes('renovar')));
+ assert.equal((await req('/historico?inicio=2026-02-30')).status,400);
  await ok('/equipe','POST',{email:'p3@example.invalid',papel:'recepcao',ativo:false,motivo:'Fim do acesso'});assert.equal((await req('/matriculas','GET',null,3)).status,403);
  }finally{await app.fechar();}
 });
