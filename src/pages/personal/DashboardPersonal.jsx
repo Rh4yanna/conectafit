@@ -17,7 +17,7 @@ import GerenciarPerfil from './GerenciarPerfil';
 import AgendaPersonal from './AgendaPersonal';
 import SolicitacoesConexao from './SolicitacoesConexao';
 import AlunosAtivos from './AlunosAtivos';
-const menu=[['inicio','Início'],['alunos','Meus Alunos'],['treinos','Treinos'],['feedbacks','Feedbacks'],['anamnese','Anamnese'],['avaliacoes','Avaliações'],['fotos','Fotos'],['agenda','Agenda'],['cobrancas','Cobranças'],['comunicados','Avisos'],['perfil','Meu Perfil'],['solicitacoes','Solicitações'],['avisos','Notificações']];
+const menu=[['inicio','Início'],['alunos','Meus Alunos'],['treinos','Treinos'],['feedbacks','Feedbacks'],['anamnese','Anamnese'],['avaliacoes','Avaliações'],['fotos','Fotos'],['agenda','Agenda'],['cobrancas','Cobranças'],['perfil','Meu Perfil'],['solicitacoes','Solicitações']];
 const atalhos=[['inicio','Início',Home],['alunos','Alunos',Users],['treinos','Treinos',Dumbbell],['agenda','Agenda',Calendar],['perfil','Perfil',User]];
 export default function DashboardPersonal(){
  const [parametros,setParametros]=useSearchParams(),aba=menu.some(([id])=>id===parametros.get('aba'))?parametros.get('aba'):'inicio';
