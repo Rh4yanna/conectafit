@@ -16,7 +16,7 @@ function AnamneseOuPlano({alunoId,modulo}){
  const {dados,erro,carregando,carregar}=useNutricao(`/pacientes/${alunoId}/anamnese`);
  if(carregando)return <p role="status">Carregando anamnese...</p>;
  if(erro)return <><MensagemTemporaria as="p" role="alert">{erro}</MensagemTemporaria><button className="acao-secundaria" onClick={carregar}>Tentar novamente</button></>;
- return modulo==='anamnese'?<AnamneseNutri alunoId={alunoId} avaliacao={dados} onSalvar={carregar}/>:<PlanosAlimentares alunoId={alunoId} anamnese={dados}/>;
+ return modulo==='anamnese'?<AnamneseNutri alunoId={alunoId} avaliacao={dados} onSalvar={carregar}/>:<PlanosAlimentares alunoId={alunoId} anamnese={dados} simplificado/>;
 }
 function DadosPaciente({alunoId,modulo}){
  if(modulo==='prontuario')return <ProntuarioCompleto alunoId={alunoId}/>;

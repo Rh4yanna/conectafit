@@ -1,7 +1,7 @@
 import MensagemTemporaria from '../../components/MensagemTemporaria';
 /* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react';
-import { Search, Dumbbell, Mail, Phone, Calendar, AlertCircle, ChevronRight, UserX } from 'lucide-react';
+import { Search, Dumbbell, Mail, Phone, Calendar, AlertCircle, UserX } from 'lucide-react';
 import { apiFetch } from '../../config/api';
 import DetalhesAluno from '../profissional/DetalhesAluno';
 
@@ -151,15 +151,8 @@ export default function AlunosAtivos({nutri=false}) {
                     disabled={!aluno.ativo} onClick={() => setAlunoAberto(aluno.id)}
                     className="flex-1 flex items-center justify-center gap-1.5 bg-[#00AEFF] hover:bg-[#0092d6] text-black py-2 rounded-xl font-bold text-xs transition-colors"
                   >
-                    <Dumbbell className="w-3.5 h-3.5" /> {nutri?'Ver Dieta':'Ver Fichas'}
+                    <Dumbbell className="w-3.5 h-3.5" /> Ver Fichas
                   </button>
-                  {nutri&&<button
-                    disabled={!aluno.ativo} onClick={() => setAlunoAberto(aluno.id)}
-                    className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl transition-colors"
-                    title="Montar Ficha"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>}
                 </div>
               </div>
             ))}

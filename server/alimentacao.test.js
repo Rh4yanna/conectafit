@@ -45,6 +45,8 @@ test('integração: autoria, versões, diário privado, dúvidas, isolamento e p
     assert.equal((await api(`/planos/${p.id}/refeicoes`,'POST',{...plano.refeicoes[0],versao:1})).status,403);
     assert.equal((await api(`/planos/${p.id}/versoes`,'GET',null,2)).status,404);
     assert.equal((await api(`/planos/${p.id}`,'PUT',{...plano,versao:1},4)).status,404);
+    assert.equal((await api(`/planos/${p.id}`,'DELETE',{versao:1},4)).status,404);
+    assert.equal((await api(`/planos/${p.id}`,'DELETE',{versao:99},3)).status,409);
     const contexto={plano_id:p.id,plano_versao:1,refeicao_id:p.refeicoes[0].id};
     const corpo={...registro(),...contexto,contexto:{titulo:'Adulterado'},foto:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII='};
     const registros=await Promise.all([api('/diario','POST',corpo),api('/diario','POST',corpo)]);assert.deepEqual(registros.map(r=>r.status).sort(),[200,201]);let d=registros[0].data;
@@ -67,6 +69,7 @@ test('integração: autoria, versões, diário privado, dúvidas, isolamento e p
     await pool.query('UPDATE conexoes_nutri SET permite_dietas=FALSE WHERE nutri_id=3');
     assert.equal((await api('/duvidas?aluno_id=1','GET',null,3)).status,403);
     assert.equal((await api(`/planos/${p.id}`,'PUT',{...novoPlano,versao:2},3)).status,403);
+    assert.equal((await api(`/planos/${p.id}`,'DELETE',{versao:2},3)).status,403);
     assert.equal((await api('/duvidas','POST',{...contexto,chave_cliente:crypto.randomUUID(),pergunta:'Outra?'})).status,403);
     const editado=await api(`/diario/${d.id}`,'PUT',{...corpo,versao:d.versao,status:'parcial',foto:null});assert.equal(editado.status,200);d=editado.data;
     assert.equal(d.tem_foto,false);assert.equal((await api('/diario')).data.realizadas_semana,0);
@@ -97,5 +100,9 @@ test('integração: autoria, versões, diário privado, dúvidas, isolamento e p
     await pool.query(`UPDATE diario_alimentar SET data=(date_trunc('week',NOW() AT TIME ZONE 'America/Sao_Paulo')-INTERVAL '1 day')::date`);assert.equal((await api('/diario')).data.realizadas_semana,0);
     await pool.query(`UPDATE diario_alimentar SET data=date_trunc('week',NOW() AT TIME ZONE 'America/Sao_Paulo')::date`);assert.equal((await api('/diario')).data.realizadas_semana,1);
     await pool.query(`UPDATE diario_alimentar SET data=(date_trunc('week',NOW() AT TIME ZONE 'America/Sao_Paulo')+INTERVAL '7 days')::date`);assert.equal((await api('/diario')).data.realizadas_semana,0);
+    await pool.query('UPDATE conexoes_nutri SET permite_dietas=TRUE WHERE nutri_id=3');
+    assert.equal((await api(`/planos/${p.id}`,'DELETE',{versao:2},3)).status,200);
+    assert.equal((await api('/planos')).data.some(item=>item.id===p.id),false);
+    assert.equal((await pool.query('SELECT count(*)::int n FROM versoes_alimentares WHERE plano_id=$1',[p.id])).rows[0].n,2);
   }finally{if(server)await new Promise(r=>server.close(r));await pool?.end();await db.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await db.end();}
 });

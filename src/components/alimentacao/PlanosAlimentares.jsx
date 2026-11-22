@@ -7,13 +7,13 @@ import {AcervoNutri,ArquivoPlano} from './AcervoNutri';
 /* eslint-disable react/prop-types */
 import { useCallback,useEffect,useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
-import { alimentacao,dataBR } from './comum';
+import { alimentacao,dataBR,quantidade } from './comum';
 import FormPlanoAlimentar from './FormPlanoAlimentar';
 import DetalhesPlanoAlimentar from './DetalhesPlanoAlimentar';
 import ListaCompras from './ListaCompras';
 import ListaComprasAluno from './ListaComprasAluno';
 import ModalAlimentacao from './ModalAlimentacao';
-export default function PlanosAlimentares({alunoId,onRegistrar,onDuvida,anamnese=null,areaAluno,onAreaAluno}){
+export default function PlanosAlimentares({alunoId,onRegistrar,onDuvida,anamnese=null,areaAluno,onAreaAluno,simplificado=false}){
   const {temaEscuro}=useTheme();const profissional=Boolean(alunoId);const GrupoPlanos=profissional?'div':'details';
   const [areaInterna,setAreaInterna]=useState('refeicoes');
   const area=areaAluno??areaInterna;
@@ -24,7 +24,7 @@ export default function PlanosAlimentares({alunoId,onRegistrar,onDuvida,anamnese
   const carregar=useCallback(async()=>{setLoading(true);setErro('');try{setPlanos(await alimentacao(`/planos${alunoId?`?aluno_id=${alunoId}`:''}`));}catch(e){setErro(e.message);}finally{setLoading(false);}},[alunoId]);
   useEffect(()=>{carregar();},[carregar]);
   const vigente=async p=>{setOcupado(true);setErro('');try{await alimentacao(`/planos/${p.id}/vigente`,'PUT',{});setMensagem('Plano definido para acompanhamento atual.');await carregar();}catch(e){setErro(e.message);}finally{setOcupado(false);}};
-  const remover=async()=>{setOcupado(true);setErro('');try{await alimentacao(`/planos/${excluir.id}`,'DELETE',{versao:excluir.versao});setExcluir(null);setMensagem('Plano pessoal excluído. Seus registros do diário foram preservados.');await carregar();}catch(e){setErro(e.message);setExcluir(null);}finally{setOcupado(false);}};
+  const remover=async()=>{setOcupado(true);setErro('');try{await alimentacao(`/planos/${excluir.id}`,'DELETE',{versao:excluir.versao});setExcluir(null);setMensagem('Plano excluído. Os registros do diário foram preservados.');await carregar();}catch(e){setErro(e.message);setExcluir(null);}finally{setOcupado(false);}};
   const removerRefeicao=async()=>{
     const {plano,refeicao}=excluirRefeicao;
     if(plano.origem!=='pessoal')return;
@@ -36,6 +36,16 @@ export default function PlanosAlimentares({alunoId,onRegistrar,onDuvida,anamnese
       setExcluirRefeicao(null);setMensagem('Refeição excluída. Registros do diário preservados.');await carregar();
     }catch(e){setErro(e.message);setExcluirRefeicao(null);}finally{setOcupado(false);}
   };
+  if(profissional&&simplificado)return <section className="space-y-4 mt-4" aria-label="Plano alimentar">
+    <button className="rounded-xl bg-sky-600 text-white px-4 py-3" onClick={()=>setForm({})}>Montar dieta</button>
+    {erro&&<MensagemTemporaria as="p" role="alert">{erro}</MensagemTemporaria>}{mensagem&&<MensagemTemporaria as="p" role="status">{mensagem}</MensagemTemporaria>}
+    {loading?<p role="status">Carregando planos...</p>:!planos.length?<p>Nenhum plano disponível.</p>:planos.map(p=><article key={p.id} className="border rounded-xl p-4 space-y-4"><h3 className="font-bold text-lg">{p.titulo}</h3>
+      {p.refeicoes.map(r=><div className="border-t border-neutral-500/30 pt-3" key={r.id}><h4 className="font-semibold">{r.nome}</h4>{r.alimentos?.length?<ul className="space-y-1">{r.alimentos.map((a,i)=><li key={i} className="flex justify-between gap-2"><span>{a.nome}</span><span>{quantidade(a)}</span></li>)}</ul>:<p>{r.detalhes}</p>}{r.orientacoes&&<p className="whitespace-pre-wrap">{r.orientacoes}</p>}</div>)}
+      {p.descricao&&<p className="whitespace-pre-wrap">{p.descricao}</p>}
+      <div className="flex flex-wrap gap-3"><button className="acao-secundaria" onClick={()=>setForm(p)}>Revisar dieta</button><button className="acao-secundaria text-red-500" onClick={()=>setExcluir(p)}>Excluir</button></div></article>)}
+    {form&&<FormPlanoAlimentar anamnese={anamnese} plano={form.refeicoes?form:null} profissional alunoId={alunoId} onClose={()=>setForm(null)} onSalvo={()=>{setForm(null);setMensagem('Plano salvo.');carregar();}}/>}
+    {excluir&&<ModalAlimentacao titulo="Excluir plano alimentar?" onClose={()=>setExcluir(null)} ocupado={ocupado}><p>O plano “{excluir.titulo}” será removido da lista. Os registros já feitos no diário serão preservados.</p><button disabled={ocupado} className="mt-4 bg-red-600 text-white rounded-lg p-3" onClick={remover}>{ocupado?'Excluindo...':'Confirmar exclusão'}</button></ModalAlimentacao>}
+  </section>;
   return <section className="space-y-4" aria-label="Planos alimentares">{!profissional&&<AbasAluno distribuir valor={area} onChange={setArea} itens={[['refeicoes','Minhas refeições',Utensils],['trocar','Trocar alimento',ArrowLeftRight],['compras','Lista de compras',ShoppingBasket]]}/>}<div hidden={!profissional&&area!=='refeicoes'} className="space-y-4"><header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-bold">{profissional?'Planos enviados por você':'Meus planos alimentares'}</h2></div><button className="rounded-xl bg-sky-600 text-white px-4 py-3" onClick={()=>setForm({})}>{profissional?'Criar plano profissional':'Adicionar refeição'}</button></header>
     {!profissional&&<RefeicoesAluno planos={planos} onRegistrar={onRegistrar} onDuvida={onDuvida} onEditar={setForm} onExcluir={(plano,refeicao)=>setExcluirRefeicao({plano,refeicao})}/>} 
     {profissional&&<AcervoNutri key={form?'editando':mensagem} alunoId={alunoId} abrir={setForm}/>}

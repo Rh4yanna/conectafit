@@ -166,7 +166,7 @@ export function rotasAlimentacao(db){
   router.post('/planos',rota(async(req,res)=>res.status(201).json(await criarPlano(db,req.usuario,req.body,req.usuario.tipo_usuario==='nutri'?req.body.aluno_id:req.usuario.id))));
   router.put('/planos/:id',rota(async(req,res)=>res.json(await atualizarPlano(db,req.usuario,req.params.id,req.body))));
   router.post('/planos/:id/refeicoes',rota(async(req,res)=>res.status(201).json(await atualizarPlano(db,req.usuario,req.params.id,req.body,true))));
-  router.delete('/planos/:id',aluno,rota(async(req,res)=>{
+  router.delete('/planos/:id',rota(async(req,res)=>{
     await planoAcessivel(db,req.usuario,req.params.id,true);
     const r=await db.query('UPDATE planos_alimentares SET excluido_em=NOW(),vigente=FALSE,ativo=FALSE WHERE id=$1 AND versao=$2 AND excluido_em IS NULL RETURNING id',[req.params.id,req.body.versao]);
     if(!r.rows.length)throw falha('Plano alterado. Recarregue antes de excluir.',409);res.json({message:'Plano removido da lista. Registros do diário preservados.'});
