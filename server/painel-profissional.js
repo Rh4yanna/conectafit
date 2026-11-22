@@ -15,5 +15,14 @@ export function painelProfissional(db){
   try{const r=await db.query('INSERT INTO compromissos_profissionais(profissional_id,data,horario,observacao) VALUES($1,$2,$3,$4) RETURNING id',[q.usuario.id,data,horario,observacao.trim()]);s.status(201).json(r.rows[0]);}
   catch(e){s.status(e.code==='23505'?409:500).json({message:e.code==='23505'?'Já existe um compromisso nesse horário.':'Não foi possível salvar o compromisso.'});}
  });
+ r.put('/calendario/:id',async(q,s)=>{
+  const {data,horario,observacao}=q.body;
+  if(!/^\d+$/.test(q.params.id)||!dataValida(data,true)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(horario||'')||typeof observacao!=='string'||!observacao.trim()||observacao.length>2000)return s.status(400).json({message:'Preencha data, horário e observação válidos.'});
+  try{const resultado=await db.query('UPDATE compromissos_profissionais SET data=$3,horario=$4,observacao=$5 WHERE id=$1 AND profissional_id=$2 RETURNING id',[q.params.id,q.usuario.id,data,horario,observacao.trim()]);if(!resultado.rows.length)return s.status(404).json({message:'Compromisso não encontrado.'});s.json(resultado.rows[0]);}catch(e){s.status(e.code==='23505'?409:500).json({message:e.code==='23505'?'Já existe um compromisso nesse horário.':'Não foi possível editar o compromisso.'});}
+ });
+ r.delete('/calendario/:id',async(q,s)=>{
+  if(!/^\d+$/.test(q.params.id))return s.status(400).json({message:'Compromisso inválido.'});
+  try{const resultado=await db.query('DELETE FROM compromissos_profissionais WHERE id=$1 AND profissional_id=$2 RETURNING id',[q.params.id,q.usuario.id]);if(!resultado.rows.length)return s.status(404).json({message:'Compromisso não encontrado.'});s.json({ok:true});}catch{s.status(500).json({message:'Não foi possível excluir o compromisso.'});}
+ });
  return r;
 }

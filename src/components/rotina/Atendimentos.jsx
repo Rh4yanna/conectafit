@@ -4,7 +4,7 @@ import {useEffect,useState} from 'react';
 import {apiFetch} from '../../config/api';
 import Modal from '../alimentacao/ModalAlimentacao';
 import {rotina,useRotina,campo,botao,painel,dataBr,hoje,estados} from './comum';
-const acoes={confirmar:'Confirmar presença',remarcar:'Propor remarcação',aceitar_remarcacao:'Aceitar novo horário',recusar_remarcacao:'Recusar novo horário',cancelar:'Cancelar atendimento',realizado:'Registrar realização',ausente:'Registrar ausência'};
+const acoes={confirmar:'Confirmar presença',remarcar:'Editar horário',aceitar_remarcacao:'Aceitar novo horário',recusar_remarcacao:'Recusar novo horário',cancelar:'Apagar / cancelar',realizado:'Registrar realização',ausente:'Registrar ausência'};
 export default function Atendimentos({profissional=false}){
  const [pagina,setPagina]=useState(0),[filtro,setFiltro]=useState(''),{dados,erro,carregando,carregar}=useRotina(`/agenda?offset=${pagina*20}&data=${filtro}`),[acao,setAcao]=useState(null),[form,setForm]=useState({}),[falha,setFalha]=useState(''),[mensagem,setMensagem]=useState(''),[ocupado,setOcupado]=useState(false),[alunos,setAlunos]=useState([]);
  const usuario=JSON.parse(localStorage.getItem('usuario')||localStorage.getItem('usuarioLogado')||'{}');
