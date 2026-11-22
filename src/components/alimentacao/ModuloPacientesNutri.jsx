@@ -5,7 +5,7 @@ import {apiFetch} from '../../config/api';
 import MensagemTemporaria from '../MensagemTemporaria';
 import AnamneseNutri from './AnamneseNutri';
 import PlanosAlimentares from './PlanosAlimentares';
-import {RetornosNutri} from './AcompanhamentoNutri';
+import {RetornosNutri,DiarioNutri} from './AcompanhamentoNutri';
 import {useNutricao} from './nutricao';
 import EvolucaoPersonal from '../personal/EvolucaoPersonal';
 import CobrancasPersonal from '../personal/CobrancasPersonal';
@@ -21,8 +21,12 @@ function AnamneseOuPlano({alunoId,modulo}){
 function DadosPaciente({alunoId,modulo}){
  if(modulo==='prontuario')return <ProntuarioCompleto alunoId={alunoId}/>;
  if(modulo==='evolucao'||modulo==='avaliacoes')return <EvolucaoPersonal alunoId={alunoId} modulo={modulo==='evolucao'?'fotos':'avaliacoes'} tipo="nutri"/>;
- if(modulo==='feedbacks')return <RetornosNutri alunoId={alunoId}/>;
+ if(modulo==='feedbacks')return <FeedbackPaciente alunoId={alunoId}/>;
  return <AnamneseOuPlano alunoId={alunoId} modulo={modulo}/>;
+}
+function FeedbackPaciente({alunoId}){
+ const [registro,setRegistro]=useState(null);
+ return <div className="space-y-4"><DiarioNutri alunoId={alunoId} selecionar={setRegistro}/><RetornosNutri key={registro?.id||'geral'} alunoId={alunoId} registro={registro}/></div>;
 }
 function ProntuarioCompleto({alunoId}){
  const [aberto,setAberto]=useState('');
