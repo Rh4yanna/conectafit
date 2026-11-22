@@ -20,6 +20,7 @@ export function rotasRelatoriosAcademia(db){
    const planos=(await c.query(`SELECT c.contrato->>'nome' AS nome,count(*)::int AS contratos,count(DISTINCT c.matricula_id)::int AS alunos FROM ciclos_matricula c JOIN matriculas_academia m ON m.id=c.matricula_id WHERE m.academia_id=$1 AND c.inicio BETWEEN $2 AND $3 GROUP BY c.contrato->>'id',c.contrato->>'nome' ORDER BY contratos DESC,nome`,v)).rows;
    const frequencia=(await c.query('SELECT p.data::text,count(*)::int AS presencas FROM presencas_academia p WHERE academia_id=$1 AND NOT cancelada AND data BETWEEN $2 AND $3 GROUP BY data ORDER BY data',v)).rows;
    const movimento=(await c.query(`SELECT extract(isodow FROM entrada AT TIME ZONE 'America/Sao_Paulo')::int AS dia_semana,extract(hour FROM entrada AT TIME ZONE 'America/Sao_Paulo')::int AS hora,count(*)::int AS entradas FROM acessos_academia WHERE academia_id=$1 AND (entrada AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3 GROUP BY dia_semana,hora ORDER BY entradas DESC,dia_semana,hora`,v)).rows;
+   const acessos=(await c.query(`SELECT count(*) FILTER(WHERE (entrada AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3)::int AS entradas,count(DISTINCT matricula_id) FILTER(WHERE (entrada AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2 AND $3)::int AS alunos_distintos,count(*) FILTER(WHERE saida IS NULL)::int AS presentes FROM acessos_academia WHERE academia_id=$1`,v)).rows[0];
    const dias=Math.round((Date.parse(fim)-Date.parse(inicio))/86400000)+1;
    const anteriorFim=new Date(Date.parse(inicio)-86400000).toISOString().slice(0,10),anteriorInicio=new Date(Date.parse(inicio)-dias*86400000).toISOString().slice(0,10);
    const consolidar=async(de,ate)=>(await c.query(`SELECT
@@ -31,7 +32,7 @@ export function rotasRelatoriosAcademia(db){
     (SELECT count(*)::int FROM ciclos_matricula c JOIN matriculas_academia m ON m.id=c.matricula_id WHERE m.academia_id=$1 AND c.inicio BETWEEN $2 AND $3) AS contratos`,[q.unidade,de,ate])).rows[0];
    const comparacao={inicio:anteriorInicio,fim:anteriorFim,atual:await consolidar(inicio,fim),anterior:await consolidar(anteriorInicio,anteriorFim)};
    const base_historica=await baseHistorica(c,q.unidade,inicio,fim);
-   return {base_historica,comparacao,inicio,fim,gerado_em:new Date().toISOString(),matriculas,situacoes,cancelamentos,caixa,caixa_diario,mensalidades,contas,leads,planos,frequencia,movimento};
+   return {base_historica,comparacao,inicio,fim,gerado_em:new Date().toISOString(),matriculas,situacoes,cancelamentos,caixa,caixa_diario,mensalidades,contas,leads,planos,frequencia,movimento,acessos};
   }));
  }));return r;
 }

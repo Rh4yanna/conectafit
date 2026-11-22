@@ -10,7 +10,7 @@ import PatrimonioAcademia from './PatrimonioAcademia';
 import FiscalAcademia from './FiscalAcademia';
 import EstoqueAcademia from './EstoqueAcademia';
 import ComercialAcademia from './GestaoLeads';
-import FluxoAcademia from './FluxoAcademia';
+import FluxoPainel from './FluxoPainel';
 import FeedbacksAcademia from './FeedbacksAcademia';
 import AgendaAcademia from './AgendaAcademia';
 import ResumoMatricula from './ResumoMatricula';
@@ -55,7 +55,7 @@ export default function OperacaoAcademia({unidade,inicial='inicio',titular=false
  {aba==='relatorios'&&gestor&&<RelatoriosAcademia api={api}/>}
  {aba==='estoque'&&gestor&&<PatrimonioAcademia api={api}/>}
  {aba==='comercial'&&operador&&<ComercialAcademia api={api} matriculas={dados.matriculas} recarregar={carregar}/>}
- {aba==='fluxo'&&<><Caixa titulo="Controle de acesso / Catracas"><p>Nenhum equipamento conectado.</p><p>O registro de entradas e saídas abaixo é manual. A integração depende da configuração de um equipamento compatível.</p></Caixa><FluxoAcademia api={api} matriculas={dados.matriculas} recarregar={carregar}/></>}
+ {aba==='fluxo'&&<FluxoPainel api={api} matriculas={dados.matriculas} recarregar={carregar} gestor={gestor}/>}
  {aba==='agenda'&&<AgendaAcademia api={api} operador={operador}/>}
  {aba==='turmas'&&<Turmas dados={dados} operador={operador} salvar={salvar}/>}
  {aba==='equipe'&&gestor&&<Equipe api={api} titular={titular}/>}
