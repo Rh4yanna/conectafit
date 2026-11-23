@@ -4,6 +4,7 @@ import AberturaAplicacao, {useTelaInicialPronta} from './components/AberturaApli
 import ConvitePersonal from './pages/ConvitePersonal';
 import ExperienciaCompartilhada,{ProtecaoTela} from './components/ExperienciaCompartilhada';
 import ConviteAcademia from './pages/academia/ConviteAcademia';
+import ConviteEquipe from './pages/academia/ConviteEquipe';
 import RotinaAluno from './pages/aluno/RotinaAluno';
 import AlunoLayout from './pages/aluno/AlunoLayout';
 import {useState,useEffect} from 'react';
@@ -70,6 +71,7 @@ export default function App() {
         <FeedbackOperacoes/>
         <div id="conteudo-principal" tabIndex={-1}><ProtecaoTela><Routes>
           <Route path="/convite/academia/:token" element={<ConviteAcademia/>}/>
+          <Route path="/convite/equipe/:token" element={<ConviteEquipe/>}/>
           <Route path="/academia/equipe" element={<RotaProtegida><DashboardAcademia equipe/></RotaProtegida>}/>
           {/* Rotas Públicas */}
           <Route path="/" element={<Landing />} /><Route path="/convite/personal/:token" element={<ConvitePersonal/>}/><Route path="/convite/nutricionista/:token" element={<ConvitePersonal/>}/><Route path="/convite/:token" element={<ConvitePersonal/>}/>

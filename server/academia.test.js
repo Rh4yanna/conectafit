@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import {servidorIsolado} from '../scripts/teste-servidor-isolado.mjs';
 import {hojeEvolucao} from './evolucao.js';
 test('academia: contratos, financeiro concorrente, equipe, importação, presença e vagas isolados',async()=>{
  const app=await servidorIsolado();try{
+ const conexao=await app.db.connect();try{await conexao.query(`SET search_path TO ${app.schema}`);await conexao.query(await fs.readFile(new URL('./migrations/065_equipe_cadastros.sql',import.meta.url),'utf8'));}finally{conexao.release();}
  for(const [id,tipo] of [[1,'academia'],[2,'academia'],[3,'aluno'],[4,'personal'],[5,'aluno']])await app.db.query(`INSERT INTO ${app.schema}.usuarios(id,nome,email,senha_hash,tipo_usuario) VALUES($1,$2,$3,'teste',$4)`,[id,`Pessoa ${id}`,`p${id}@example.invalid`,tipo]);
  const tokens=Object.fromEntries(await Promise.all([1,2,3,4,5].map(async id=>[id,await app.token(id)])));
  async function req(path,method='GET',body,id=1,unidade=1){const r=await fetch(app.base+'/api/operacao-academia'+path+(path.includes('?')?'&':'?')+'unidade='+unidade,{method,headers:{Authorization:`Bearer ${tokens[id]}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();return {status:r.status,data:d};}
@@ -36,7 +38,7 @@ test('academia: contratos, financeiro concorrente, equipe, importação, presen�
  assert.equal((await req(`/lancamentos/${concorrentes[0].data.id}/estorno`,'POST',{data:hoje,motivo:'Repetido'})).status,409);
  const manual={tipo:'despesa',descricao:'Manutenção',categoria:'manutencao',valor:20,data:hoje,chave_cliente:crypto.randomUUID()};await ok('/lancamentos','POST',manual);assert.equal((await req('/lancamentos','POST',{...manual,chave_cliente:crypto.randomUUID()})).status,409);
  const financeiro=await ok(`/financeiro?inicio=${inicio}&fim=${m.termino.slice(0,10)}`);assert.equal(Number(financeiro.resumo.recebido),50);assert.equal(financeiro.lancamentos.length,4);
- await ok('/equipe','POST',{email:'p3@example.invalid',papel:'recepcao',ativo:true,motivo:'Recepção'});await ok('/equipe','POST',{email:'p4@example.invalid',papel:'professor',ativo:true,motivo:'Professor'});
+ for(const [id,papel,setor] of [[3,'recepcao','recepcao'],[4,'professor','professores']]){const f=await ok('/funcionarios','POST',{nome:`Pessoa ${id}`,email:`p${id}@example.invalid`,cargo:papel,setor,turno:'manha',dias:[],papel_solicitado:papel});const conviteEquipe=await ok(`/funcionarios/${f.id}/convite`,'POST',{});await ok(`/convite-equipe/${conviteEquipe.token}/aceitar`,'POST',{},id);}
  assert.equal((await req('/mensalidades','GET',null,3)).status,403);assert.equal((await req('/historico','GET',null,3)).status,403);assert.equal((await req('/planos','GET',null,4)).status,403);assert.equal((await req('/matriculas','POST',{nome:'Teste pessoa',email:'teste@invalid.com'},4)).status,403);
  const visivel=(await ok('/matriculas','GET',null,3))[0];assert.equal(visivel.valor_mensal,undefined);assert.equal(visivel.contrato,undefined);assert.equal(visivel.ciclos,undefined);
  assert.equal((await req('/matriculas','GET',null,2,1)).status,403);assert.equal((await req(`/matriculas/${m.id}`,'PATCH',{situacao:'trancada',motivo:'Teste',versao:m.versao},2,2)).status,404);
