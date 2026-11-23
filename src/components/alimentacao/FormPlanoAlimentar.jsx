@@ -38,7 +38,7 @@ export default function FormPlanoAlimentar({plano,alunoId,profissional=false,onC
       </fieldset>)}
       <button type="button" disabled={form.refeicoes.length>=12} className="acao-secundaria text-sky-500" onClick={()=>setForm(f=>({...f,refeicoes:[...f.refeicoes,refeicaoVazia()]}))}>Adicionar refeição</button>
       {profissional&&<div className="flex gap-3"><button type="button" className="acao-secundaria" onClick={()=>guardar(false)}>Salvar rascunho</button><button type="button" className="acao-secundaria" onClick={()=>guardar(true)}>Salvar como modelo</button></div>}{mensagem&&<MensagemTemporaria as="p" role="status">{mensagem}</MensagemTemporaria>}
-      <button className="block w-full bg-sky-600 rounded-xl p-3 text-white font-bold disabled:opacity-50">{ocupado?'Salvando...':form.id?'Salvar nova versão':profissional?'Publicar plano para o aluno':'Salvar plano pessoal'}</button>
+      <button className="block w-full bg-sky-600 rounded-xl p-3 text-white font-bold disabled:opacity-50">{ocupado?'Salvando...':form.id?'Salvar nova versão':profissional?'Publicar plano para o paciente':'Salvar plano pessoal'}</button>
     </fieldset></form>
   </ModalAlimentacao>;
 }

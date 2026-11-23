@@ -48,7 +48,7 @@ export default function DashboardNutri() {
 
         {/* GERENCIAR PERFIL */}
         {abaAtiva === 'perfil' && <GerenciarPerfilNutri />}
-        {abaAtiva === 'agenda' && <AgendaPersonal />}
+        {abaAtiva === 'agenda' && <AgendaPersonal nutri />}
         {abaAtiva === 'avisos' && <div className="p-5 lg:p-10"><Notificacoes profissional/></div>}
 
         {/* SOLICITAÇÕES DE CONEXÃO NUTRI */}

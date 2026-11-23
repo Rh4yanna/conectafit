@@ -26,7 +26,7 @@ export default function AlunosAtivos({nutri=false}) {
       const res = await apiFetch('/profissional/alunos?incluir_inativos=true');
 
       if (!res.ok) {
-        throw new Error('Não foi possível carregar a lista de alunos.');
+        throw new Error(nutri?'Não foi possível carregar a lista de pacientes.':'Não foi possível carregar a lista de alunos.');
       }
 
       const data = await res.json();
@@ -62,7 +62,7 @@ export default function AlunosAtivos({nutri=false}) {
   if (loading) {
     return (
       <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-3xl text-center text-neutral-400">
-        Carregando lista de alunos ativos...
+        {nutri?'Carregando lista de pacientes ativos...':'Carregando lista de alunos ativos...'}
       </div>
     );
   }
@@ -74,7 +74,7 @@ export default function AlunosAtivos({nutri=false}) {
           <div>
             <h2 className="text-lg font-bold text-white mb-1">{nutri?'Meus pacientes':'Meus alunos'}</h2>
             <p className="text-xs text-neutral-400">
-              Total de {alunosFiltrados.length} aluno(s).{nutri&&' O status vale apenas para o seu acompanhamento.'}
+              Total de {alunosFiltrados.length} {nutri?'paciente(s)':'aluno(s)'}.{nutri&&' O status vale apenas para o seu acompanhamento.'}
             </p>
           </div>
 
@@ -91,7 +91,7 @@ export default function AlunosAtivos({nutri=false}) {
           </div>
         </div>
 
-        <label className="flex gap-2 text-sm text-neutral-300 mb-4"><input type="checkbox" checked={incluirInativos} onChange={e=>setIncluirInativos(e.target.checked)}/>Mostrar também alunos inativos</label>
+        <label className="flex gap-2 text-sm text-neutral-300 mb-4"><input type="checkbox" checked={incluirInativos} onChange={e=>setIncluirInativos(e.target.checked)}/>{nutri?'Mostrar também pacientes inativos':'Mostrar também alunos inativos'}</label>
         {erro && (
           <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -102,8 +102,8 @@ export default function AlunosAtivos({nutri=false}) {
         {alunosFiltrados.length === 0 ? (
           <div className="text-center py-10 space-y-2">
             <UserX className="w-8 h-8 text-neutral-600 mx-auto" />
-            <p className="text-sm font-bold text-neutral-400">Nenhum aluno encontrado</p>
-            <p className="text-xs text-neutral-600">Tente buscar por outro termo ou adicione novos alunos.</p>
+            <p className="text-sm font-bold text-neutral-400">{nutri?'Nenhum paciente encontrado':'Nenhum aluno encontrado'}</p>
+            <p className="text-xs text-neutral-600">{nutri?'Tente buscar por outro termo ou adicione novos pacientes.':'Tente buscar por outro termo ou adicione novos alunos.'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
